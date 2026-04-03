@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screens</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div style="font-weight:700;color:#1e3a8a;margin-bottom:12px">KASTAMONU<br/>Digital Signage</div>
+      <a class="active" href="/admin/screens.html">📺 Экраны</a>
+      <a href="/admin/playlists.html">📋 Плейлисты</a>
+      <a href="/admin/media.html">📁 Медиа</a>
+    </aside>
+    <main class="content">
+      <h1 class="h1">Экраны и мониторинг</h1>
+      <div id="stats" class="top-stats"></div>
+      <div id="screens" class="grid"></div>
+      <div class="section card">
+        <strong>Ссылка для регистрации экрана:</strong>
+        <p class="mono" id="registerLink"></p>
+      </div>
+    </main>
+  </div>
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/admin/login.html";
+    const headers = { Authorization: "Bearer " + token };
+
+    function colorCls(status) {
+      if (status === "online") return "online";
+      if (status === "offline") return "offline";
+      return "waiting";
+    }
+
+    async function loadScreens() {
+      const res = await fetch("/api/screens", { headers });
+      if (!res.ok) return;
+      const screens = await res.json();
+      const online = screens.filter((s) => s.status === "online").length;
+      const offline = screens.filter((s) => s.status === "offline").length;
+      const waiting = screens.filter((s) => s.status === "waiting").length;
+      document.getElementById("stats").innerHTML =
+        `<div class="chip">Онлайн: ${online}</div><div class="chip">Оффлайн: ${offline}</div><div class="chip">Ожидание: ${waiting}</div><div class="chip">Всего: ${screens.length}</div>`;
+
+      document.getElementById("screens").innerHTML = screens.map((s) => `
+        <div class="card">
+          <div style="font-weight:600;color:#1e3a8a">${s.name || s.id}</div>
+          <div style="color:#64748b">${s.ip_address || "-"}</div>
+          <div style="margin:12px 0">Плейлист: <span class="mono">${s.playlist_id || "не задан"}</span></div>
+          <div class="status"><span class="dot ${colorCls(s.status)}"></span>${s.status}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:6px">Heartbeat: ${s.last_heartbeat || "-"}</div>
+        </div>
+      `).join("");
+    }
+
+    const screenId = crypto.randomUUID();
+    document.getElementById("registerLink").textContent = `${location.origin}/display/${screenId}`;
+
+    const wsProto = location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${wsProto}://${location.host}/ws`);
+    ws.addEventListener("open", () => ws.send(JSON.stringify({ event: "admin-subscribe", data: {} })));
+    ws.addEventListener("message", () => loadScreens());
+
+    loadScreens();
+    setInterval(loadScreens, 5000);
+  </script>
+</body>
+</html>

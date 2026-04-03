@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Playlists</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div style="font-weight:700;color:#1e3a8a;margin-bottom:12px">KASTAMONU<br/>Digital Signage</div>
+      <a href="/admin/screens.html">📺 Экраны</a>
+      <a class="active" href="/admin/playlists.html">📋 Плейлисты</a>
+      <a href="/admin/media.html">📁 Медиа</a>
+    </aside>
+    <main class="content">
+      <h1 class="h1">Плейлисты</h1>
+      <form id="f" class="card" style="max-width:480px">
+        <input class="input" name="name" placeholder="Название плейлиста" />
+        <button class="btn" type="submit">Создать</button>
+      </form>
+      <div id="list" class="section grid"></div>
+    </main>
+  </div>
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/admin/login.html";
+    const headers = { Authorization: "Bearer " + token, "content-type": "application/json" };
+    async function load() {
+      const r = await fetch("/api/playlists", { headers });
+      const items = await r.json();
+      document.getElementById("list").innerHTML = items.map((p) => `<div class="card"><strong>${p.name}</strong><div class="mono">${p.id}</div></div>`).join("");
+    }
+    document.getElementById("f").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await fetch("/api/playlists", { method: "POST", headers, body: JSON.stringify({ name: fd.get("name"), items: [] }) });
+      e.target.reset();
+      load();
+    });
+    load();
+  </script>
+</body>
+</html>

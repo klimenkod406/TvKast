@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Media</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div style="font-weight:700;color:#1e3a8a;margin-bottom:12px">KASTAMONU<br/>Digital Signage</div>
+      <a href="/admin/screens.html">📺 Экраны</a>
+      <a href="/admin/playlists.html">📋 Плейлисты</a>
+      <a class="active" href="/admin/media.html">📁 Медиа</a>
+    </aside>
+    <main class="content">
+      <h1 class="h1">Медиа</h1>
+      <form id="upload" class="card" style="max-width:500px">
+        <input class="input" type="file" name="file" />
+        <button class="btn" type="submit">Загрузить</button>
+      </form>
+      <div id="list" class="section grid"></div>
+    </main>
+  </div>
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/admin/login.html";
+    const headers = { Authorization: "Bearer " + token };
+    async function load() {
+      const r = await fetch("/api/media", { headers });
+      const items = await r.json();
+      document.getElementById("list").innerHTML = items.map((m) => `
+        <div class="card">
+          <strong>${m.original_name}</strong>
+          <div>Статус: ${m.conversion_status} (${m.conversion_progress}%)</div>
+          <div class="mono">${m.id}</div>
+        </div>
+      `).join("");
+    }
+    document.getElementById("upload").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await fetch("/api/media/upload", { method: "POST", headers, body: fd });
+      e.target.reset();
+      load();
+    });
+    load();
+    setInterval(load, 4000);
+  </script>
+</body>
+</html>

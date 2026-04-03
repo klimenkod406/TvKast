@@ -1,0 +1,36 @@
+:root {
+  --kastamonu-blue: #1e3a8a;
+  --kastamonu-green: #10b981;
+  --bg-primary: #f8fafc;
+  --text-primary: #475569;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+  --status-online: #10b981;
+  --status-offline: #ef4444;
+  --status-warning: #f59e0b;
+  --gradient-primary: linear-gradient(135deg, #10b981 0%, #1e3a8a 100%);
+}
+
+* { box-sizing: border-box; font-family: Inter, Segoe UI, sans-serif; }
+body { margin: 0; background: var(--bg-primary); color: var(--text-primary); }
+.layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+.sidebar { background: #fff; border-right: 1px solid var(--border); padding: 20px; }
+.sidebar a { display: block; color: var(--kastamonu-blue); text-decoration: none; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+.sidebar a.active { background: #eff6ff; font-weight: 600; }
+.content { padding: 24px; }
+.h1 { color: var(--kastamonu-blue); font-size: 24px; font-weight: 600; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dot.online { background: var(--status-online); }
+.dot.offline { background: var(--status-offline); }
+.dot.waiting { background: var(--status-warning); }
+.btn { background: var(--gradient-primary); border: none; color: #fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(30, 58, 138, .2); }
+.input, .select { width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px; margin-bottom: 10px; }
+.input:focus, .select:focus { outline: none; border-color: var(--kastamonu-green); box-shadow: 0 0 0 3px rgba(16, 185, 129, .1); }
+.top-stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.chip { background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; font-weight: 600; }
+.section { margin-top: 24px; }
+.mono { font-family: Consolas, monospace; }

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+    <form id="loginForm" class="card" style="width:360px">
+      <h1 class="h1">KASTAMONU Digital Signage</h1>
+      <input class="input" name="login" placeholder="Логин" value="admin" />
+      <input class="input" name="password" type="password" placeholder="Пароль" />
+      <button class="btn" style="width:100%" type="submit">Войти</button>
+      <p id="error" style="color:#ef4444"></p>
+    </form>
+  </div>
+  <script>
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { login: fd.get("login"), password: fd.get("password") };
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        document.getElementById("error").textContent = "Ошибка авторизации";
+        return;
+      }
+      const data = await res.json();
+      localStorage.setItem("token", data.token);
+      window.location.href = "/admin/screens.html";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Display</title>
+  <style>
+    html, body { margin:0; background:#000; color:#fff; width:100%; height:100%; overflow:hidden; cursor:none; }
+    #stage { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    img, video, iframe { width:100%; height:100%; object-fit:contain; border:none; }
+  </style>
+</head>
+<body>
+  <div id="stage">Ожидание контента...</div>
+  <script>
+    document.addEventListener("contextmenu", (e) => e.preventDefault());
+    const stage = document.getElementById("stage");
+    const screenId = location.pathname.split("/").pop();
+    let mediaList = [];
+    let index = 0;
+
+    function render(item) {
+      if (!item) {
+        stage.textContent = "Нет контента";
+        return;
+      }
+      if (item.type.startsWith("image") || item.src.endsWith(".gif")) {
+        stage.innerHTML = `<img src="${item.src}" />`;
+        setTimeout(next, (item.duration || 10) * 1000);
+        return;
+      }
+      if (item.type.startsWith("video")) {
+        stage.innerHTML = `<video src="${item.src}" autoplay muted></video>`;
+        const v = stage.querySelector("video");
+        v.onended = next;
+        return;
+      }
+      stage.innerHTML = `<iframe src="${item.src}"></iframe>`;
+      setTimeout(next, (item.duration || 10) * 1000);
+    }
+
+    function next() {
+      if (!mediaList.length) return;
+      index = (index + 1) % mediaList.length;
+      render(mediaList[index]);
+    }
+
+    async function loadConfig() {
+      const r = await fetch(`/api/display/${screenId}/config`);
+      if (!r.ok) return;
+      const cfg = await r.json();
+      mediaList = cfg.mediaList || [];
+      index = 0;
+      render(mediaList[0]);
+    }
+
+    const wsProto = location.protocol === "https:" ? "wss" : "ws";
+    let ws;
+    function connect() {
+      ws = new WebSocket(`${wsProto}://${location.host}/ws`);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ event: "register", data: { screenId, timestamp: Date.now() } }));
+      };
+      ws.onmessage = (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.event === "playlist-change") {
+          mediaList = msg.data.mediaList || [];
+          index = 0;
+          render(mediaList[0]);
+          ws.send(JSON.stringify({ event: "ack", data: { commandId: msg.data.commandId, status: "executed" } }));
+        }
+      };
+      ws.onclose = () => setTimeout(connect, 2000);
+    }
+    connect();
+    setInterval(() => {
+      if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ event: "heartbeat", data: { screenId, timestamp: Date.now() } }));
+      fetch(`/api/display/${screenId}/heartbeat`, { method: "POST" });
+    }, 30000);
+    loadConfig();
+  </script>
+</body>
+</html>
