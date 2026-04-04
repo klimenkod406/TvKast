@@ -13,9 +13,13 @@ const EXAMPLE_PATH = path.join(ROOT, ".env.example");
 
 function safeIdent(name) {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-    throw new Error("Invalid database/user name");
+    throw new Error("Invalid database/user name: " + name);
   }
   return name;
+}
+
+function escapeLiteral(str) {
+  return String(str).replace(/'/g, "''");
 }
 
 function mergeEnvFile(updates) {
@@ -64,10 +68,10 @@ async function main() {
 
   const roleExists = await admin.query("SELECT 1 FROM pg_roles WHERE rolname = $1", [appUser]);
   if (!roleExists.rows.length) {
-    await admin.query(`CREATE ROLE ${appUser} WITH LOGIN PASSWORD $1`, [appPassword]);
+    await admin.query(`CREATE ROLE ${appUser} WITH LOGIN PASSWORD '${escapeLiteral(appPassword)}'`);
     console.log("Created role", appUser);
   } else {
-    await admin.query(`ALTER ROLE ${appUser} WITH PASSWORD $1`, [appPassword]);
+    await admin.query(`ALTER ROLE ${appUser} WITH PASSWORD '${escapeLiteral(appPassword)}'`);
     console.log("Updated password for role", appUser);
   }
 
