@@ -9,12 +9,12 @@ package-lock.json
 
 # Media files (uploaded and converted)
 media/
+!media/.gitkeep
 
 # Logs
 logs/
 *.log
 npm-debug.log*
-%TEMP%\DigitalSignage-Setup.log
 
 # OS files
 .DS_Store
@@ -35,7 +35,7 @@ build/
 # Database backup
 *.sql.backup
 
-# Installer
+# Installer temp/markers
 INSTALL_OK
 setup.exe
 DigitalSignage-Setup-*.exe
@@ -44,4 +44,15 @@ DigitalSignage-Setup-*.exe
 *.tmp
 *.temp
 .cache/
-.qwen 
+
+# Qwen / AI assistant
+.qwen/
+.cursor/
+
+# Test scripts (local only, not for distribution)
+test-*.ps1
+test-*.bat
+
+# Windows service helper (downloaded)
+nssm.exe
+service/ 

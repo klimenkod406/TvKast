@@ -81,7 +81,7 @@ async function getPlaylistMedia(playlistId) {
   if (!playlistId) return [];
   const { rows } = await pool.query(
     `SELECT pi.id, pi."order", pi.duration_seconds, m.id AS media_id, m.original_name,
-            m.mime_type, m.original_path, m.gif_path, m.conversion_status
+            m.mime_type, m.original_path, m.gif_path, m.conversion_status, m.duration_seconds AS media_duration
        FROM playlist_items pi
        JOIN media m ON m.id = pi.media_id
       WHERE pi.playlist_id = $1
@@ -90,10 +90,12 @@ async function getPlaylistMedia(playlistId) {
   );
   return rows.map((item) => {
     const canUseVideo = USE_VIDEO_IF_SUPPORTED && item.conversion_status !== "completed";
+    // Для GIF используем длительность из duration_seconds (плейлиста) или media_duration (из метаданных видео)
+    const resolvedDuration = item.duration_seconds || item.media_duration || 10;
     return {
       id: item.media_id,
       name: item.original_name,
-      duration: item.duration_seconds,
+      duration: resolvedDuration,
       type: item.mime_type,
       src: canUseVideo ? item.original_path.replace(/\\/g, "/") : (item.gif_path || item.original_path).replace(/\\/g, "/"),
     };
@@ -119,13 +121,42 @@ async function sendPlaylistToScreen(screenId, playlistId) {
   return { queued: false, commandId };
 }
 
-function convertToGif(inputPath, outputPath, progressCb) {
+function getVideoDuration(inputPath) {
   return new Promise((resolve, reject) => {
+    const args = [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      inputPath,
+    ];
+    const ff = spawn(FFMPEG_PATH, args);
+    let output = "";
+    ff.stdout.on("data", (buf) => { output += String(buf); });
+    ff.on("close", (code) => {
+      if (code === 0) {
+        const dur = parseFloat(output.trim());
+        resolve(isNaN(dur) ? null : dur);
+      } else {
+        reject(new Error("ffprobe failed with code " + code));
+      }
+    });
+    ff.on("error", reject);
+  });
+}
+
+function convertToGif(inputPath, outputPath, duration, progressCb) {
+  return new Promise((resolve, reject) => {
+    // Рассчитываем FPS так, чтобы GIF имел ту же длительность, что и исходное видео
+    // Цель: максимум 15 FPS, но при этом общая длительность GIF = duration
+    // Для длительности > 10 секунд: fps=15, для коротких видео: подбираем
+    const targetFps = duration && duration > 0 ? Math.min(15, Math.max(5, Math.ceil(300 / duration))) : 15;
+
     const args = [
       "-i",
       inputPath,
       "-vf",
-      "fps=15,scale=1920:-1:flags=lanczos",
+      `fps=${targetFps},scale=1920:-1:flags=lanczos`,
+      "-gifflags", "-diffcrop",
       "-y",
       outputPath,
     ];
@@ -133,11 +164,17 @@ function convertToGif(inputPath, outputPath, progressCb) {
     ff.stderr.on("data", (buf) => {
       const line = String(buf);
       const match = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
-      if (match) {
+      if (match && duration && duration > 0) {
+        const [, hh, mm, ss] = match;
+        const currentSeconds = Number(hh) * 3600 + Number(mm) * 60 + Number(ss);
+        const percent = Math.min(99, Math.round((currentSeconds / duration) * 100));
+        progressCb(percent);
+      } else if (match) {
+        // Если длительность неизвестна, показываем примерный прогресс
         const [, hh, mm, ss] = match;
         const seconds = Number(hh) * 3600 + Number(mm) * 60 + Number(ss);
-        const progress = Math.max(1, Math.min(99, Math.floor(seconds)));
-        progressCb(progress);
+        const percent = Math.max(1, Math.min(99, Math.floor(seconds / 6)));
+        progressCb(percent);
       }
     });
     ff.on("close", (code) => {
@@ -156,16 +193,30 @@ async function processQueue() {
   const relOutputPath = `/media/converted/${task.id}.gif`;
 
   try {
-    await pool.query("UPDATE media SET conversion_status='processing', conversion_progress=1 WHERE id=$1", [task.id]);
-    await convertToGif(task.originalAbsPath, outputPath, async (progress) => {
+    await pool.query("UPDATE media SET conversion_status='processing', conversion_progress=0 WHERE id=$1", [task.id]);
+
+    // Определяем длительность исходного видео
+    let duration = task.duration || null;
+    if (!duration) {
+      try {
+        duration = await getVideoDuration(task.originalAbsPath);
+      } catch (durError) {
+        console.error("Не удалось определить длительность видео:", durError.message);
+      }
+    }
+
+    // Конвертируем в GIF
+    await convertToGif(task.originalAbsPath, outputPath, duration, async (progress) => {
       await pool.query("UPDATE media SET conversion_progress=$1 WHERE id=$2", [progress, task.id]);
       broadcastAdmin("conversion-progress", { mediaId: task.id, progress });
     });
 
+    // Сохраняем метаданные
     const metadataPath = path.join(METADATA_DIR, `${task.id}.json`);
     const metadata = {
       id: task.id,
       original_name: task.originalName,
+      duration: duration,
       gif_path: relOutputPath,
       conversion_status: "completed",
       created_at: new Date().toISOString(),
@@ -173,11 +224,12 @@ async function processQueue() {
     };
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), "utf8");
 
+    // Обновляем запись в БД: сохраняем длительность
     await pool.query(
-      "UPDATE media SET conversion_status='completed', conversion_progress=100, gif_path=$1, converted_at=NOW() WHERE id=$2",
-      [relOutputPath, task.id]
+      "UPDATE media SET conversion_status='completed', conversion_progress=100, gif_path=$1, duration_seconds=$2, converted_at=NOW() WHERE id=$3",
+      [relOutputPath, duration, task.id]
     );
-    broadcastAdmin("conversion-completed", { mediaId: task.id });
+    broadcastAdmin("conversion-completed", { mediaId: task.id, duration });
   } catch (error) {
     await pool.query(
       "UPDATE media SET conversion_status='failed', error_message=$1 WHERE id=$2",
@@ -286,15 +338,23 @@ app.post("/api/media/upload", authMiddleware, upload.single("file"), async (req,
   fs.renameSync(req.file.path, absolutePath);
   const originalPath = `/media/original/${renamed}`;
 
+  // Определяем длительность видео перед записью в БД
+  let duration = null;
+  try {
+    duration = await getVideoDuration(absolutePath);
+  } catch (durError) {
+    console.error("Не удалось определить длительность видео при загрузке:", durError.message);
+  }
+
   await pool.query(
-    `INSERT INTO media (id, original_name, mime_type, original_path, file_size, conversion_status, conversion_progress)
-     VALUES ($1, $2, $3, $4, $5, 'pending', 0)`,
-    [id, req.file.originalname, req.file.mimetype || "application/octet-stream", originalPath, req.file.size]
+    `INSERT INTO media (id, original_name, mime_type, original_path, file_size, duration_seconds, conversion_status, conversion_progress)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', 0)`,
+    [id, req.file.originalname, req.file.mimetype || "application/octet-stream", originalPath, req.file.size, duration]
   );
 
-  queue.push({ id, originalAbsPath: absolutePath, originalName: req.file.originalname });
+  queue.push({ id, originalAbsPath: absolutePath, originalName: req.file.originalname, duration });
   processQueue();
-  res.status(201).json({ id, status: "pending" });
+  res.status(201).json({ id, status: "pending", duration });
 });
 
 app.delete("/api/media/:id", authMiddleware, async (req, res) => {

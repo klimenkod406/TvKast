@@ -1,18 +1,44 @@
 @echo off
+chcp 65001 >nul 2>&1
 cd /d "%~dp0"
 title Digital Signage Installer
 
 echo.
-echo   Digital Signage - Setup Wizard
-echo   Log: %%TEMP%%\DigitalSignage-Setup.log
+echo   =============================================
+echo     Digital Signage — Мастер установки
+echo   =============================================
+echo   Лог: %%TEMP%%\DigitalSignage-Setup.log
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; & '%~dp0install.ps1'"
+REM Проверка прав администратора (опционально, для сервиса)
+net session >nul 2>&1
+if %errorlevel%==0 (
+    echo   [OK] Запущен от имени администратора
+) else (
+    echo   [!] Без прав администратора (сервис не будет зарегистрирован)
+)
+echo.
+
+REM Запуск единого PowerShell-установщика с поддержкой Unicode
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-Unified.ps1"
+
 if errorlevel 1 (
     echo.
-    echo ERROR: Installation failed.
-    echo Log: %%TEMP%%\DigitalSignage-Setup.log
+    echo   =============================================
+    echo   ОШИБКА: Установка не завершена.
+    echo   =============================================
+    echo   Лог: %%TEMP%%\DigitalSignage-Setup.log
     echo.
     pause
     exit /b 1
 )
+
+echo.
+echo   =============================================
+echo   Установка завершена успешно!
+echo   =============================================
+echo.
+echo   Запуск сервера: Start.cmd
+echo   Админ-панель:   http://localhost:3000/admin/login.html
+echo.
+pause
