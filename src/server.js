@@ -18,6 +18,37 @@ const FFMPEG_PATH = process.env.FFMPEG_PATH || "ffmpeg";
 const USE_VIDEO_IF_SUPPORTED = String(process.env.USE_VIDEO_IF_SUPPORTED || "false") === "true";
 
 const ROOT = path.join(__dirname, "..");
+const LOGS_DIR = path.join(ROOT, "logs");
+fs.mkdirSync(LOGS_DIR, { recursive: true });
+
+// ============================================================
+// Файловое логирование
+// ============================================================
+const LOG_ACCESS  = path.join(LOGS_DIR, "access.log");
+const LOG_AUTH    = path.join(LOGS_DIR, "auth.log");
+const LOG_ERROR   = path.join(LOGS_DIR, "error.log");
+
+function logFile(filePath, line) {
+  const ts = new Date().toISOString();
+  fs.appendFileSync(filePath, `[${ts}] ${line}\n`, "utf8");
+}
+
+function logAccess(method, url, ip, status, duration) {
+  logFile(LOG_ACCESS, `${method} ${url} ${ip} ${status} ${duration}ms`);
+}
+
+function logAuth(action, login, success, detail) {
+  logFile(LOG_AUTH, `${action} login=${login} ${success ? "OK" : "FAIL"} ${detail || ""}`);
+}
+
+function logError(ctx, err) {
+  const msg = err instanceof Error ? err.stack : String(err);
+  logFile(LOG_ERROR, `[${ctx}] ${msg}`);
+}
+
+// ============================================================
+// Создание директорий
+// ============================================================
 const MEDIA_ROOT = path.join(ROOT, "media");
 const ORIGINAL_DIR = path.join(MEDIA_ROOT, "original");
 const CONVERTED_DIR = path.join(MEDIA_ROOT, "converted");
@@ -31,6 +62,16 @@ const pool = new Pool({
 });
 
 const app = express();
+
+// Middleware: логирование HTTP-запросов
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    logAccess(req.method, req.originalUrl, req.ip, res.statusCode, Date.now() - start);
+  });
+  next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 app.use("/media", express.static(MEDIA_ROOT));
@@ -57,7 +98,8 @@ function authMiddleware(req, res, next) {
   try {
     req.user = jwt.verify(token, JWT_SECRET);
     next();
-  } catch {
+  } catch (err) {
+    logError("AUTH_TOKEN", err);
     res.status(401).json({ error: "Invalid token" });
   }
 }
@@ -201,7 +243,7 @@ async function processQueue() {
       try {
         duration = await getVideoDuration(task.originalAbsPath);
       } catch (durError) {
-        console.error("Не удалось определить длительность видео:", durError.message);
+        logError("VIDEO_DURATION", durError);
       }
     }
 
@@ -252,12 +294,24 @@ app.get("/display/:screenId", (_req, res) => {
 
 app.post("/api/auth/login", async (req, res) => {
   const { login, password } = req.body || {};
-  const { rows } = await pool.query("SELECT * FROM admins WHERE login = $1", [login]);
-  const admin = rows[0];
-  if (!admin) return res.status(401).json({ error: "Invalid credentials" });
-  const ok = bcrypt.compareSync(password || "", admin.password_hash);
-  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-  res.json({ token: signToken(admin), mustChangePassword: admin.must_change_password });
+  try {
+    const { rows } = await pool.query("SELECT * FROM admins WHERE login = $1", [login]);
+    const admin = rows[0];
+    if (!admin) {
+      logAuth("LOGIN", login || "unknown", false, "User not found");
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    const ok = bcrypt.compareSync(password || "", admin.password_hash);
+    if (!ok) {
+      logAuth("LOGIN", login, false, "Wrong password");
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    logAuth("LOGIN", login, true, "");
+    res.json({ token: signToken(admin), mustChangePassword: admin.must_change_password });
+  } catch (err) {
+    logError("AUTH", err);
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 app.get("/api/screens", authMiddleware, async (_req, res) => {
@@ -343,7 +397,7 @@ app.post("/api/media/upload", authMiddleware, upload.single("file"), async (req,
   try {
     duration = await getVideoDuration(absolutePath);
   } catch (durError) {
-    console.error("Не удалось определить длительность видео при загрузке:", durError.message);
+    logError("VIDEO_DURATION_UPLOAD", durError);
   }
 
   await pool.query(

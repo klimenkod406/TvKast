@@ -469,6 +469,20 @@ function Main-Install {
 
     Write-Host ""
     Write-Info "Создание таблиц и учётной записи admin..."
+
+    # Удаляем ADMIN_PASSWORD_HASH из .env — иначе db:init возьмёт старый хэш из файла
+    # вместо переданного через ENV пароля
+    if (Test-Path $envPath) {
+        $cleanLines = @()
+        foreach ($line in (Get-Content $envPath)) {
+            $l = $line.Trim()
+            if (-not $l.StartsWith("ADMIN_PASSWORD_HASH=")) {
+                $cleanLines += $line
+            }
+        }
+        [System.IO.File]::WriteAllLines($envPath, $cleanLines, [System.Text.Encoding]::UTF8)
+    }
+
     $env:ADMIN_PASSWORD = $adminPass
     $dbInitOut = & npm run db:init 2>&1 | Out-String
     Write-Log $dbInitOut
