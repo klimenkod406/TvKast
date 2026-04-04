@@ -6,28 +6,23 @@
 ## Установка «для всех» (Windows, без правки кода)
 
 1. Установите **Node.js 18+** (https://nodejs.org/) и **PostgreSQL 14+** (https://www.postgresql.org/download/windows/), включите **PostgreSQL** в «Службах».
-2. Запустите **`Install.cmd`** (двойной щелчок) и ответьте на вопросы мастера.
-   - Если в пути есть кириллица — используйте **`Install-Unicode.cmd`** (откроется отдельное окно с полной поддержкой Unicode).
-3. После появления файла **`INSTALL_OK`** запускайте **`Start.cmd`**.
-4. Откройте в браузере: `http://localhost:3000/admin/login.html` (логин `admin`, пароль — тот, что задан при установке).
+2. Запустите **`Install.ps1`** (правый клик → «Выполнить в PowerShell» или из консоли: `powershell -File Install.ps1`).
+3. Следуйте подсказкам мастера — цветной CLI с интерактивным меню и маской пароля.
+4. После появления экрана «Установка завершена» сервер запустится автоматически (или через **`Start.cmd`**).
+5. Откройте в браузере: `http://localhost:3000/admin/login.html` (логин `admin`, пароль — тот, что задан при установке).
 
 Лог установки: `%TEMP%\DigitalSignage-Setup.log`
-
-Сборка `setup.exe`: откройте `setup.iss` в **Inno Setup Compiler** и скомпилируйте установщик.
 
 ### Файлы установщика
 
 | Файл | Описание |
 |------|----------|
-| `Install.cmd` | Основной установщик (единая точка входа) |
-| `Install-Unicode.cmd` | Установщик в отдельном окне с поддержкой кириллицы |
-| `Install-Unified.ps1` | Единый PowerShell-скрипт установки |
-| `install-service.bat` | Регистрация Windows-сервиса (отдельно) |
-| `setup.iss` | Скрипт Inno Setup для создания setup.exe |
-| `download-ffmpeg.ps1` | Скрипт загрузки ffmpeg (вызывается автоматически) |
+| `Install.ps1` | **Единый CLI-установщик** — цветной вывод, меню, маска пароля |
+| `setup.iss` | Скрипт Inno Setup для создания `setup.exe` (компилируется в `installer-output/`) |
+| `download-ffmpeg.ps1` | Скрипт загрузки ffmpeg (вызывается автоматически установщиком) |
 
 ## Быстрый старт (разработчик)
-1. Скопируйте `.env.example` в `.env` или выполните `Install.cmd`
+1. Скопируйте `.env.example` в `.env` или выполните `Install.ps1`
 2. `npm install`
 3. При необходимости укажите `DATABASE_URL` в `.env`
 4. `npm run db:init`
