@@ -243,7 +243,7 @@ async function processQueue() {
       try {
         duration = await getVideoDuration(task.originalAbsPath);
       } catch (durError) {
-        logError("VIDEO_DURATION", durError);
+        logError("VIDEO_DURATION_QUEUE", durError);
       }
     }
 
@@ -273,11 +273,13 @@ async function processQueue() {
     );
     broadcastAdmin("conversion-completed", { mediaId: task.id, duration });
   } catch (error) {
+    const errMsg = error instanceof Error ? (error.stack || error.message) : String(error);
+    logError("CONVERSION", { taskId: task.id, error: errMsg });
     await pool.query(
       "UPDATE media SET conversion_status='failed', error_message=$1 WHERE id=$2",
-      [String(error.message || error), task.id]
+      [errMsg.slice(0, 500), task.id]
     );
-    broadcastAdmin("conversion-failed", { mediaId: task.id, error: String(error.message || error) });
+    broadcastAdmin("conversion-failed", { mediaId: task.id, error: errMsg.slice(0, 200) });
   } finally {
     conversionInProgress = false;
     processQueue();
@@ -390,8 +392,19 @@ app.get("/api/media", authMiddleware, async (_req, res) => {
 
 app.post("/api/media/upload", authMiddleware, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "File is required" });
+
+  // Декодируем кириллицу из multipart (браузеры могут слать double-encoded UTF-8)
+  let originalName = req.file.originalname;
+  try {
+    // Пробуем перекодировать если получились кракозябры (Latin-1 -> UTF-8)
+    if (/[\x80-\xff]/.test(originalName) && !/^[\x20-\x7eа-яА-ЯёЁ]+$/.test(originalName)) {
+      const fixed = Buffer.from(originalName, "latin1").toString("utf8");
+      if (/[\u0400-\u04ff]/.test(fixed)) originalName = fixed;
+    }
+  } catch { /* оставляем как есть */ }
+
   const id = uuidv4();
-  const ext = path.extname(req.file.originalname) || ".bin";
+  const ext = path.extname(originalName) || ".bin";
   const renamed = `${id}${ext.toLowerCase()}`;
   const absolutePath = path.join(ORIGINAL_DIR, renamed);
   fs.renameSync(req.file.path, absolutePath);
@@ -419,12 +432,12 @@ app.post("/api/media/upload", authMiddleware, upload.single("file"), async (req,
   await pool.query(
     `INSERT INTO media (id, original_name, mime_type, original_path, gif_path, file_size, duration_seconds, conversion_status, conversion_progress)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, req.file.originalname, mimeType, originalPath, gifPath, req.file.size, duration, status, progress]
+    [id, originalName, mimeType, originalPath, gifPath, req.file.size, duration, status, progress]
   );
 
   // В очередь только видео
   if (isVideo) {
-    queue.push({ id, originalAbsPath: absolutePath, originalName: req.file.originalname, duration });
+    queue.push({ id, originalAbsPath: absolutePath, originalName, duration });
     processQueue();
   }
 

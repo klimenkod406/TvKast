@@ -63,6 +63,7 @@ function card(m) {
       ${m.conversion_status === "pending" || m.conversion_status === "processing"
         ? `<span style="font-size:12px;color:var(--text-tertiary)">(${m.conversion_progress}%)</span>` : ""}
     </div>
+    ${m.conversion_status === "failed" ? `<div style="margin-top:4px;font-size:11px;color:var(--status-offline);word-break:break-all">${esc(m.error_message || "Неизвестная ошибка")}</div>` : ""}
     <div style="margin-top:8px;text-align:right">
       <button class="btn btn-sm btn-danger" onclick="del('${m.id}')">🗑️ Удалить</button>
     </div>

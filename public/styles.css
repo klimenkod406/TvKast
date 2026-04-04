@@ -31,10 +31,14 @@ body { margin: 0; background: var(--bg-primary); color: var(--text-primary); fon
 .sidebar a.active { background: #eff6ff; font-weight: 600; }
 
 /* ── Main ── */
-.main { padding: 24px; }
+.main { padding: 24px; display: flex; flex-direction: column; }
 .main header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
 .main header h1 { color: var(--kastamonu-blue); font-size: 24px; font-weight: 600; margin: 0; }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.main .grid { flex: 0 0 auto; }
+
+/* ── Registration card (bottom) ── */
+.reg-card { margin-top: auto; padding-top: 24px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--border); }
 
 /* ── Grid & Cards ── */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
