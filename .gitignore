@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Media files (uploaded and converted)
+media/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+%TEMP%\DigitalSignage-Setup.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist/
+build/
+
+# Database backup
+*.sql.backup
+
+# Installer
+INSTALL_OK
+setup.exe
+DigitalSignage-Setup-*.exe
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.qwen 
