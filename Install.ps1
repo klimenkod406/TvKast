@@ -462,8 +462,9 @@ function Main-Install {
         $adminPass = Generate-Password
         Write-Host ""
         Write-Host "  $($Colors.Bold)$($Colors.Yellow)Сгенерированный пароль: $adminPass$($Colors.Reset)"
-        Write-Host "  $($Colors.Yellow)!!! Сохраните его — он не будет показан снова !!!$($Colors.Reset)"
+        Write-Host "  $($Colors.Bold)$($Colors.Yellow)!!! Сохраните его — он не будет показан снова !!!$($Colors.Reset)"
         Write-Host ""
+        Wait-Enter "Запишите пароль и нажмите Enter для продолжения"
     }
 
     Write-Host ""
