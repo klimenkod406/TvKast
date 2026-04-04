@@ -316,7 +316,12 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/screens", authMiddleware, async (_req, res) => {
   const { rows } = await pool.query(
-    "SELECT id, name, host(ip_address) AS ip_address, playlist_id, status, last_heartbeat, created_at FROM screens ORDER BY created_at DESC"
+    `SELECT s.id, s.name, host(s.ip_address) AS ip_address, s.group_id, g.name AS group_name,
+            s.playlist_id, p.name AS playlist_name, s.status, s.last_heartbeat, s.created_at
+       FROM screens s
+       LEFT JOIN screen_groups g ON g.id = s.group_id
+       LEFT JOIN playlists p ON p.id = s.playlist_id
+      ORDER BY s.created_at DESC`
   );
   res.json(rows);
 });
@@ -392,23 +397,38 @@ app.post("/api/media/upload", authMiddleware, upload.single("file"), async (req,
   fs.renameSync(req.file.path, absolutePath);
   const originalPath = `/media/original/${renamed}`;
 
-  // Определяем длительность видео перед записью в БД
+  const mimeType = req.file.mimetype || "application/octet-stream";
+  const isVideo = mimeType.startsWith("video/");
+  const isImage = mimeType.startsWith("image/");
+
+  // Определяем длительность только для видео
   let duration = null;
-  try {
-    duration = await getVideoDuration(absolutePath);
-  } catch (durError) {
-    logError("VIDEO_DURATION_UPLOAD", durError);
+  if (isVideo) {
+    try {
+      duration = await getVideoDuration(absolutePath);
+    } catch (durError) {
+      logError("VIDEO_DURATION_UPLOAD", durError);
+    }
   }
 
+  // Для изображений — сразу готово, для видео — pending
+  const status = isImage ? "completed" : (isVideo ? "pending" : "completed");
+  const gifPath = isImage ? originalPath : null;
+  const progress = isImage ? 100 : 0;
+
   await pool.query(
-    `INSERT INTO media (id, original_name, mime_type, original_path, file_size, duration_seconds, conversion_status, conversion_progress)
-     VALUES ($1, $2, $3, $4, $5, $6, 'pending', 0)`,
-    [id, req.file.originalname, req.file.mimetype || "application/octet-stream", originalPath, req.file.size, duration]
+    `INSERT INTO media (id, original_name, mime_type, original_path, gif_path, file_size, duration_seconds, conversion_status, conversion_progress)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [id, req.file.originalname, mimeType, originalPath, gifPath, req.file.size, duration, status, progress]
   );
 
-  queue.push({ id, originalAbsPath: absolutePath, originalName: req.file.originalname, duration });
-  processQueue();
-  res.status(201).json({ id, status: "pending", duration });
+  // В очередь только видео
+  if (isVideo) {
+    queue.push({ id, originalAbsPath: absolutePath, originalName: req.file.originalname, duration });
+    processQueue();
+  }
+
+  res.status(201).json({ id, status, duration });
 });
 
 app.delete("/api/media/:id", authMiddleware, async (req, res) => {
@@ -441,6 +461,277 @@ app.get("/api/media/:id/progress", authMiddleware, async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: "Not found" });
   res.json({ progress: rows[0].conversion_progress });
 });
+
+// ============================================================
+// ПЛЕЙЛИСТЫ — CRUD
+// ============================================================
+
+// Удалить плейлист
+app.delete("/api/playlists/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  await pool.query("DELETE FROM playlists WHERE id=$1", [id]);
+  res.json({ ok: true });
+});
+
+// Переименовать плейлист
+app.put("/api/playlists/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  await pool.query("UPDATE playlists SET name=$1, updated_at=NOW() WHERE id=$2", [name, id]);
+  res.json({ ok: true });
+});
+
+// Получить элементы плейлиста (с медиа-деталями)
+app.get("/api/playlists/:id/items", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { rows } = await pool.query(
+    `SELECT pi.id, pi."order", pi.duration_seconds,
+            m.id AS media_id, m.original_name, m.mime_type, m.original_path,
+            m.gif_path, m.conversion_status, m.file_size, m.duration_seconds AS media_duration
+       FROM playlist_items pi
+       JOIN media m ON m.id = pi.media_id
+      WHERE pi.playlist_id = $1
+      ORDER BY pi."order" ASC`,
+    [id]
+  );
+  res.json(rows);
+});
+
+// Добавить медиа в плейлист
+app.post("/api/playlists/:id/items", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { mediaId, duration } = req.body || {};
+  if (!mediaId) return res.status(400).json({ error: "mediaId required" });
+
+  // Определяем максимальный order
+  const { rows: maxRows } = await pool.query(
+    `SELECT COALESCE(MAX("order"), -1) AS max_order FROM playlist_items WHERE playlist_id=$1`, [id]
+  );
+  const nextOrder = maxRows[0].max_order + 1;
+
+  await pool.query(
+    'INSERT INTO playlist_items (id, playlist_id, media_id, "order", duration_seconds) VALUES ($1, $2, $3, $4, $5)',
+    [uuidv4(), id, mediaId, nextOrder, duration || 10]
+  );
+  await pool.query("UPDATE playlists SET updated_at=NOW() WHERE id=$1", [id]);
+  res.status(201).json({ ok: true });
+});
+
+// Удалить элемент из плейлиста
+app.delete("/api/playlists/:pid/items/:itemId", authMiddleware, async (req, res) => {
+  const { pid, itemId } = req.params;
+  await pool.query("DELETE FROM playlist_items WHERE id=$1", [itemId]);
+  await pool.query("UPDATE playlists SET updated_at=NOW() WHERE id=$1", [pid]);
+  res.json({ ok: true });
+});
+
+// Переупорядочить элементы плейлиста
+app.put("/api/playlists/:id/items/reorder", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { itemIds } = req.body || {}; // массив ID в нужном порядке
+  if (!Array.isArray(itemIds)) return res.status(400).json({ error: "itemIds array required" });
+  for (let i = 0; i < itemIds.length; i++) {
+    await pool.query('UPDATE playlist_items SET "order"=$1 WHERE id=$2', [i, itemIds[i]]);
+  }
+  await pool.query("UPDATE playlists SET updated_at=NOW() WHERE id=$1", [id]);
+  res.json({ ok: true });
+});
+
+// Обновить длительность элемента
+app.put("/api/playlists/:pid/items/:itemId", authMiddleware, async (req, res) => {
+  const { pid, itemId } = req.params;
+  const { duration } = req.body || {};
+  await pool.query("UPDATE playlist_items SET duration_seconds=$1 WHERE id=$2", [duration, itemId]);
+  await pool.query("UPDATE playlists SET updated_at=NOW() WHERE id=$1", [pid]);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// ГРУППЫ ЭКРАНОВ — CRUD
+// ============================================================
+
+app.get("/api/screens/groups", authMiddleware, async (_req, res) => {
+  const { rows } = await pool.query("SELECT g.*, COUNT(s.id) AS screen_count FROM screen_groups g LEFT JOIN screens s ON s.group_id = g.id GROUP BY g.id ORDER BY g.name");
+  res.json(rows);
+});
+
+app.post("/api/screens/groups", authMiddleware, async (req, res) => {
+  const { name } = req.body || {};
+  const id = uuidv4();
+  await pool.query("INSERT INTO screen_groups (id, name) VALUES ($1, $2)", [id, name || "Новая группа"]);
+  res.status(201).json({ id, name: name || "Новая группа" });
+});
+
+app.put("/api/screens/groups/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  await pool.query("UPDATE screen_groups SET name=$1 WHERE id=$2", [name, id]);
+  res.json({ ok: true });
+});
+
+app.delete("/api/screens/groups/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  await pool.query("DELETE FROM screen_groups WHERE id=$1", [id]);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// ЭКРАН — обновление (группа, плейлист, имя)
+// ============================================================
+
+app.put("/api/screens/:screenId", authMiddleware, async (req, res) => {
+  const { screenId } = req.params;
+  const { name, groupId, playlistId } = req.body || {};
+
+  const updates = [];
+  const values = [];
+  let idx = 1;
+
+  if (name !== undefined)       { updates.push(`name=$${idx++}`); values.push(name); }
+  if (groupId !== undefined)    { updates.push(`group_id=$${idx++}`); values.push(groupId || null); }
+  if (playlistId !== undefined) { updates.push(`playlist_id=$${idx++}`); values.push(playlistId || null); }
+
+  if (updates.length > 0) {
+    updates.push("updated_at=NOW()");
+    values.push(screenId);
+    await pool.query(`UPDATE screens SET ${updates.join(", ")} WHERE id=$${idx}`, values);
+
+    // Если плейлист изменён — отправить на экран
+    if (playlistId !== undefined && playlistId) {
+      await sendPlaylistToScreen(screenId, playlistId);
+    }
+  }
+
+  res.json({ ok: true });
+});
+
+// ============================================================
+// СЦЕНАРИИ — CRUD
+// ============================================================
+
+app.get("/api/scenarios", authMiddleware, async (_req, res) => {
+  const { rows } = await pool.query(
+    `SELECT sc.*, p.name AS playlist_name, g.name AS group_name
+       FROM scenarios sc
+       LEFT JOIN playlists p ON p.id = sc.playlist_id
+       LEFT JOIN screen_groups g ON g.id = sc.group_id
+      ORDER BY sc.priority DESC, sc.name`
+  );
+  res.json(rows);
+});
+
+app.post("/api/scenarios", authMiddleware, async (req, res) => {
+  const { name, playlistId, groupId, daysOfWeek, timeFrom, timeTo, dateFrom, dateTo, enabled, priority } = req.body || {};
+  const id = uuidv4();
+  await pool.query(
+    `INSERT INTO scenarios (id, name, playlist_id, group_id, days_of_week, time_from, time_to, date_from, date_to, enabled, priority)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [id, name || "Сценарий", playlistId || null, groupId || null, daysOfWeek || null,
+     timeFrom || null, timeTo || null, dateFrom || null, dateTo || null,
+     enabled !== false, priority || 0]
+  );
+  res.status(201).json({ id });
+});
+
+app.put("/api/scenarios/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { name, playlistId, groupId, daysOfWeek, timeFrom, timeTo, dateFrom, dateTo, enabled, priority } = req.body || {};
+  await pool.query(
+    `UPDATE scenarios SET name=COALESCE($1, name), playlist_id=COALESCE($2, playlist_id),
+                        group_id=COALESCE($3, group_id), days_of_week=COALESCE($4, days_of_week),
+                        time_from=COALESCE($5, time_from), time_to=COALESCE($6, time_to),
+                        date_from=COALESCE($7, date_from), date_to=COALESCE($8, date_to),
+                        enabled=COALESCE($9, enabled), priority=COALESCE($10, priority),
+                        updated_at=NOW()
+     WHERE id=$11`,
+    [name, playlistId, groupId, daysOfWeek, timeFrom, timeTo, dateFrom, dateTo, enabled, priority, id]
+  );
+  res.json({ ok: true });
+});
+
+app.delete("/api/scenarios/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  await pool.query("DELETE FROM scenarios WHERE id=$1", [id]);
+  res.json({ ok: true });
+});
+
+// Проверить и применить сценарии
+app.post("/api/scenarios/check", authMiddleware, async (_req, res) => {
+  const applied = await checkAndApplyScenarios();
+  res.json({ applied });
+});
+
+// ============================================================
+// ПРОВЕРКА СЦЕНАРИЕВ (вызывается также по таймеру)
+// ============================================================
+
+async function checkAndApplyScenarios() {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+  // Приведём к 1=Mon..7=Sun
+  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const currentTime = now.toTimeString().slice(0, 8); // "HH:MM:SS"
+  const currentDate = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+  // Находим активные сценарии
+  const { rows } = await pool.query(
+    `SELECT sc.id, sc.playlist_id, sc.group_id, sc.days_of_week, sc.time_from, sc.time_to, sc.date_from, sc.date_to, sc.priority
+       FROM scenarios sc
+      WHERE sc.enabled = true
+        AND (sc.days_of_week IS NULL OR sc.days_of_week LIKE '%' || $1 || '%')
+        AND (sc.date_from IS NULL OR sc.date_from <= $2::date)
+        AND (sc.date_to   IS NULL OR sc.date_to   >= $2::date)
+      ORDER BY sc.priority DESC`,
+    [String(isoDay), currentDate]
+  );
+
+  const applied = [];
+
+  for (const sc of rows) {
+    // Проверяем время
+    if (sc.time_from && sc.time_to) {
+      const tFrom = String(sc.time_from).slice(0, 8);
+      const tTo = String(sc.time_to).slice(0, 8);
+      if (currentTime < tFrom || currentTime > tTo) continue;
+    }
+
+    // Определяем экраны: по группе или все
+    let screenIds = [];
+    if (sc.group_id) {
+      const { rows: screens } = await pool.query("SELECT id FROM screens WHERE group_id = $1", [sc.group_id]);
+      screenIds = screens.map(s => s.id);
+    } else {
+      const { rows: screens } = await pool.query("SELECT id FROM screens");
+      screenIds = screens.map(s => s.id);
+    }
+
+    for (const screenId of screenIds) {
+      if (sc.playlist_id) {
+        await pool.query("UPDATE screens SET playlist_id=$1, updated_at=NOW() WHERE id=$2", [sc.playlist_id, screenId]);
+        await sendPlaylistToScreen(screenId, sc.playlist_id);
+        applied.push({ screenId, playlistId: sc.playlist_id, scenarioId: sc.id });
+      }
+    }
+  }
+
+  return applied;
+}
+
+// Таймер проверки сценариев каждые 60 секунд
+setInterval(async () => {
+  try {
+    const applied = await checkAndApplyScenarios();
+    if (applied.length > 0) {
+      console.log(`Scenarios applied: ${applied.length} screens updated`);
+    }
+  } catch (err) {
+    logError("SCENARIO_CHECK", err);
+  }
+}, 60000);
+
+// ============================================================
+// HEARTBEAT
+// ============================================================
 
 app.post("/api/display/:screenId/heartbeat", async (req, res) => {
   const { screenId } = req.params;

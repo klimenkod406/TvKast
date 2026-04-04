@@ -36,13 +36,40 @@ CREATE TABLE IF NOT EXISTS playlist_items (
   duration_seconds INTEGER NOT NULL DEFAULT 10
 );
 
+-- Группы экранов
+CREATE TABLE IF NOT EXISTS screen_groups (
+  id UUID PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS screens (
   id UUID PRIMARY KEY,
   name VARCHAR(255),
   ip_address INET,
+  group_id UUID REFERENCES screen_groups(id) ON DELETE SET NULL,
   playlist_id UUID REFERENCES playlists(id),
   status VARCHAR(50) NOT NULL DEFAULT 'waiting',
   last_heartbeat TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Сценарии: правила автоматического переключения плейлистов
+CREATE TABLE IF NOT EXISTS scenarios (
+  id UUID PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  playlist_id UUID REFERENCES playlists(id) ON DELETE SET NULL,
+  group_id UUID REFERENCES screen_groups(id) ON DELETE CASCADE,
+  -- Расписание
+  days_of_week VARCHAR(20),       -- "1,2,3,4,5" (1=Mon) или NULL = каждый день
+  time_from TIME,                 -- Время начала
+  time_to TIME,                   -- Время окончания
+  date_from DATE,                 -- Дата начала действия (или NULL)
+  date_to DATE,                   -- Дата окончания действия (или NULL)
+  -- Состояние
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  priority INTEGER NOT NULL DEFAULT 0,  -- Приоритет (больше = важнее)
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

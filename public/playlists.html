@@ -1,45 +1,258 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Playlists</title>
-  <link rel="stylesheet" href="/admin/styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Плейлисты — Digital Signage</title>
+<link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
-      <div style="font-weight:700;color:#1e3a8a;margin-bottom:12px">KASTAMONU<br/>Digital Signage</div>
-      <a href="/admin/screens.html">📺 Экраны</a>
-      <a class="active" href="/admin/playlists.html">📋 Плейлисты</a>
-      <a href="/admin/media.html">📁 Медиа</a>
-    </aside>
-    <main class="content">
-      <h1 class="h1">Плейлисты</h1>
-      <form id="f" class="card" style="max-width:480px">
-        <input class="input" name="name" placeholder="Название плейлиста" />
-        <button class="btn" type="submit">Создать</button>
-      </form>
-      <div id="list" class="section grid"></div>
-    </main>
-  </div>
-  <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "/admin/login.html";
-    const headers = { Authorization: "Bearer " + token, "content-type": "application/json" };
-    async function load() {
-      const r = await fetch("/api/playlists", { headers });
-      const items = await r.json();
-      document.getElementById("list").innerHTML = items.map((p) => `<div class="card"><strong>${p.name}</strong><div class="mono">${p.id}</div></div>`).join("");
-    }
-    document.getElementById("f").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      await fetch("/api/playlists", { method: "POST", headers, body: JSON.stringify({ name: fd.get("name"), items: [] }) });
-      e.target.reset();
-      load();
+<div class="layout">
+  <nav class="sidebar">
+    <a class="logo" href="/admin/screens.html">
+      <div>KASTAMONU</div>
+      <small>Digital Signage</small>
+    </a>
+    <a href="/admin/screens.html">📺 Экраны</a>
+    <a href="/admin/playlists.html" class="active">📋 Плейлисты</a>
+    <a href="/admin/media.html">📁 Медиа</a>
+    <a href="/admin/scenarios.html">⏰ Сценарии</a>
+  </nav>
+  <main class="main">
+    <header>
+      <h1>Плейлисты</h1>
+      <div class="actions">
+        <input class="input" id="newName" placeholder="Название нового плейлиста" style="width:260px">
+        <button class="btn" onclick="createPlaylist()">＋ Создать</button>
+      </div>
+    </header>
+    <div id="list" class="grid"></div>
+
+    <!-- Модалка редактирования плейлиста -->
+    <div class="modal-overlay" id="editor" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="modalTitle">Редактирование плейлиста</h2>
+          <button class="btn btn-sm" onclick="closeEditor()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <input class="input" id="editName" placeholder="Название" style="width:100%">
+            <button class="btn btn-sm" onclick="renamePlaylist()" style="margin-top:6px">Переименовать</button>
+          </div>
+
+          <div class="mb-3">
+            <h3 style="font-size:14px;margin:0 0 8px">Медиа в плейлисте</h3>
+            <div id="items"></div>
+          </div>
+
+          <div class="mb-3" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
+            <h3 style="font-size:14px;margin:0 0 8px">Добавить медиа</h3>
+            <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+              <select class="select" id="mediaSelect" style="flex:1;min-width:200px">
+                <option value="">— Выберите медиафайл —</option>
+              </select>
+              <input class="input" id="itemDuration" type="number" value="10" min="1" style="width:80px" title="Длительность (сек)">
+              <button class="btn btn-sm" onclick="addItem()">Добавить</button>
+            </div>
+            <div style="margin-top:8px">
+              <input type="file" id="uploadFile" accept="image/*,video/*" style="display:none" onchange="uploadToPlaylist(this)">
+              <button class="btn btn-sm" onclick="document.getElementById('uploadFile').click()">📤 Загрузить файл в плейлист</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href = "/admin/login.html";
+
+function auth() { return { Authorization: "Bearer " + token }; }
+
+let playlists = [];
+let allMedia = [];
+let currentPlaylistId = null;
+
+// ── Загрузка ──
+async function load() {
+  const [plRes, mediaRes] = await Promise.all([
+    fetch("/api/playlists", { headers: auth() }),
+    fetch("/api/media", { headers: auth() })
+  ]);
+  if (!plRes.ok || !mediaRes.ok) { localStorage.removeItem("token"); location.href = "/admin/login.html"; return; }
+  playlists = await plRes.json();
+  allMedia = await mediaRes.json();
+  renderList();
+  if (currentPlaylistId) await loadItems(currentPlaylistId);
+  populateMediaSelect();
+}
+
+function renderList() {
+  const el = document.getElementById("list");
+  if (!playlists.length) {
+    el.innerHTML = '<p style="color:var(--text-secondary)">Нет плейлистов. Создайте первый.</p>';
+    return;
+  }
+  el.innerHTML = playlists.map(p => `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div style="flex:1">
+          <strong style="color:var(--brand-blue)">${esc(p.name)}</strong>
+          <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin-top:2px">${p.id}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm" onclick="openEditor('${p.id}')">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deletePlaylist('${p.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function populateMediaSelect() {
+  const sel = document.getElementById("mediaSelect");
+  const ready = allMedia.filter(m => m.conversion_status === "completed");
+  sel.innerHTML = '<option value="">— Выберите медиафайл —</option>' +
+    ready.map(m => `<option value="${m.id}">${esc(m.original_name)} (${m.mime_type})</option>`).join("");
+}
+
+// ── CRUD плейлистов ──
+async function createPlaylist() {
+  const name = document.getElementById("newName").value.trim() || "Новый плейлист";
+  const res = await fetch("/api/playlists", { method: "POST", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify({ name, items: [] }) });
+  if (res.ok) { document.getElementById("newName").value = ""; load(); }
+}
+
+async function deletePlaylist(id) {
+  if (!confirm("Удалить плейлист?")) return;
+  await fetch("/api/playlists/" + id, { method: "DELETE", headers: auth() });
+  load();
+}
+
+// ── Редактор ──
+async function openEditor(id) {
+  currentPlaylistId = id;
+  const pl = playlists.find(p => p.id === id);
+  document.getElementById("modalTitle").textContent = pl ? pl.name : id;
+  document.getElementById("editName").value = pl ? pl.name : "";
+  document.getElementById("editor").style.display = "flex";
+  await loadItems(id);
+  populateMediaSelect();
+}
+
+function closeEditor() {
+  document.getElementById("editor").style.display = "none";
+  currentPlaylistId = null;
+}
+
+async function loadItems(id) {
+  const res = await fetch(`/api/playlists/${id}/items`, { headers: auth() });
+  if (!res.ok) return;
+  const items = await res.json();
+  renderItems(items);
+}
+
+function renderItems(items) {
+  const el = document.getElementById("items");
+  if (!items.length) {
+    el.innerHTML = '<p style="color:var(--text-tertiary);font-size:13px">Плейлист пуст. Добавьте медиа.</p>';
+    return;
+  }
+  el.innerHTML = items.map((item, i) => `
+    <div class="media-item" data-id="${item.id}" draggable="true"
+         ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dropItem(event)">
+      <span class="drag-handle">⠿</span>
+      <span style="flex:1">${esc(item.original_name)}</span>
+      <input class="input" type="number" value="${item.duration_seconds}" min="1" max="3600"
+             style="width:65px" title="Секунды" onchange="updateDuration('${item.id}', this.value)">
+      <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}с</span>
+      <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">✕</button>
+    </div>
+  `).join("");
+}
+
+async function renamePlaylist() {
+  const name = document.getElementById("editName").value.trim();
+  if (!name) return;
+  await fetch(`/api/playlists/${currentPlaylistId}`, {
+    method: "PUT", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify({ name })
+  });
+  document.getElementById("modalTitle").textContent = name;
+  load();
+}
+
+async function addItem() {
+  const mediaId = document.getElementById("mediaSelect").value;
+  const duration = parseInt(document.getElementById("itemDuration").value) || 10;
+  if (!mediaId) return;
+  await fetch(`/api/playlists/${currentPlaylistId}/items`, {
+    method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
+    body: JSON.stringify({ mediaId, duration })
+  });
+  loadItems(currentPlaylistId);
+  populateMediaSelect();
+}
+
+async function uploadToPlaylist(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
+  if (!res.ok) { alert("Ошибка загрузки"); input.value = ""; return; }
+  const data = await res.json();
+  // Для изображений — сразу добавляем, для видео — ждём конвертацию
+  if (data.status === "completed") {
+    await fetch(`/api/playlists/${currentPlaylistId}/items`, {
+      method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId: data.id, duration: parseInt(document.getElementById("itemDuration").value) || 10 })
     });
-    load();
-  </script>
+    loadItems(currentPlaylistId);
+  }
+  load();
+  input.value = "";
+}
+
+async function removeItem(pid, itemId) {
+  await fetch(`/api/playlists/${pid}/items/${itemId}`, { method: "DELETE", headers: auth() });
+  loadItems(pid);
+}
+
+async function updateDuration(itemId, secs) {
+  await fetch(`/api/playlists/${currentPlaylistId}/items/${itemId}`, {
+    method: "PUT", headers: { ...auth(), "Content-Type": "application/json" },
+    body: JSON.stringify({ duration: parseInt(secs) || 10 })
+  });
+  loadItems(currentPlaylistId);
+}
+
+// ── Drag & Drop реордер ──
+let dragId = null;
+function dragStart(e) { dragId = e.currentTarget.dataset.id; e.dataTransfer.effectAllowed = "move"; }
+function dropItem(e) {
+  e.preventDefault();
+  const targetId = e.currentTarget.dataset.id;
+  if (!dragId || dragId === targetId) return;
+  const container = e.currentTarget.parentElement;
+  const items = [...container.children].map(c => c.dataset.id);
+  const fromIdx = items.indexOf(dragId);
+  const toIdx = items.indexOf(targetId);
+  items.splice(fromIdx, 1);
+  items.splice(toIdx, 0, dragId);
+  fetch(`/api/playlists/${currentPlaylistId}/items/reorder`, {
+    method: "PUT", headers: { ...auth(), "Content-Type": "application/json" },
+    body: JSON.stringify({ itemIds: items })
+  }).then(() => loadItems(currentPlaylistId));
+  dragId = null;
+}
+
+// ── Утилиты ──
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+load();
+</script>
 </body>
 </html>

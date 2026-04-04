@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Сценарии — Digital Signage</title>
+<link rel="stylesheet" href="/admin/styles.css">
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <a class="logo" href="/admin/screens.html">
+      <div>KASTAMONU</div>
+      <small>Digital Signage</small>
+    </a>
+    <a href="/admin/screens.html">📺 Экраны</a>
+    <a href="/admin/playlists.html">📋 Плейлисты</a>
+    <a href="/admin/media.html">📁 Медиа</a>
+    <a href="/admin/scenarios.html" class="active">⏰ Сценарии</a>
+  </nav>
+  <main class="main">
+    <header>
+      <h1>Сценарии</h1>
+      <div class="actions">
+        <button class="btn" onclick="openEditor()">＋ Создать сценарий</button>
+        <button class="btn" onclick="checkScenarios()" title="Проверить и применить прямо сейчас">▶ Проверить</button>
+      </div>
+    </header>
+
+    <div class="info-box">
+      <strong>Как это работает:</strong> Сценарии автоматически переключают плейлисты на экранах по расписанию.
+      Укажите дни недели, время и плейлист — сервер будет проверять каждые 60 секунд.
+    </div>
+
+    <div id="list"></div>
+  </main>
+</div>
+
+<!-- Модалка: создание/редактирование -->
+<div class="modal-overlay" id="editor" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <h2 id="modalTitle">Новый сценарий</h2>
+      <button class="btn btn-sm" onclick="closeEditor()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Название *</label>
+        <input class="input" id="scName" placeholder="Например: Утренний эфир" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label>Плейлист *</label>
+        <select class="select" id="scPlaylist" style="width:100%"></select>
+      </div>
+      <div class="form-row">
+        <label>Группа экранов</label>
+        <select class="select" id="scGroup" style="width:100%">
+          <option value="">Все экраны</option>
+        </select>
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin:12px 0 8px;padding-top:8px">
+        <label style="font-size:13px;font-weight:600">Расписание</label>
+      </div>
+
+      <div class="form-row">
+        <label>Дни недели</label>
+        <div class="days-row" id="daysRow">
+          <label class="day-chip"><input type="checkbox" value="1"> Пн</label>
+          <label class="day-chip"><input type="checkbox" value="2"> Вт</label>
+          <label class="day-chip"><input type="checkbox" value="3"> Ср</label>
+          <label class="day-chip"><input type="checkbox" value="4"> Чт</label>
+          <label class="day-chip"><input type="checkbox" value="5"> Пт</label>
+          <label class="day-chip"><input type="checkbox" value="6"> Сб</label>
+          <label class="day-chip"><input type="checkbox" value="7"> Вс</label>
+        </div>
+      </div>
+
+      <div class="form-row" style="display:flex;gap:12px">
+        <div style="flex:1">
+          <label>Время от</label>
+          <input class="input" id="scTimeFrom" type="time" style="width:100%">
+        </div>
+        <div style="flex:1">
+          <label>Время до</label>
+          <input class="input" id="scTimeTo" type="time" style="width:100%">
+        </div>
+      </div>
+
+      <div class="form-row" style="display:flex;gap:12px">
+        <div style="flex:1">
+          <label>Дата начала</label>
+          <input class="input" id="scDateFrom" type="date" style="width:100%">
+        </div>
+        <div style="flex:1">
+          <label>Дата окончания</label>
+          <input class="input" id="scDateTo" type="date" style="width:100%">
+        </div>
+      </div>
+
+      <div class="form-row" style="display:flex;gap:12px;align-items:end">
+        <div style="flex:1">
+          <label>Приоритет</label>
+          <input class="input" id="scPriority" type="number" value="0" min="0" style="width:100%">
+        </div>
+        <div style="flex:1">
+          <label class="checkbox-label"><input type="checkbox" id="scEnabled" checked> Активен</label>
+        </div>
+      </div>
+
+      <button class="btn" onclick="saveScenario()" style="width:100%;margin-top:16px">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href = "/admin/login.html";
+
+function auth() { return { Authorization: "Bearer " + token }; }
+
+let scenarios = [];
+let playlists = [];
+let groups = [];
+let editId = null;
+
+async function load() {
+  const [scRes, plRes, grRes] = await Promise.all([
+    fetch("/api/scenarios", { headers: auth() }),
+    fetch("/api/playlists", { headers: auth() }),
+    fetch("/api/screens/groups", { headers: auth() })
+  ]);
+  if (!scRes.ok) { localStorage.removeItem("token"); location.href = "/admin/login.html"; return; }
+  scenarios = await scRes.json();
+  playlists = plRes.ok ? await plRes.json() : [];
+  groups = grRes.ok ? await grRes.json() : [];
+  renderList();
+}
+
+function renderList() {
+  const el = document.getElementById("list");
+  if (!scenarios.length) {
+    el.innerHTML = '<div class="card"><p style="color:var(--text-tertiary)">Нет сценариев. Создайте первый.</p></div>';
+    return;
+  }
+  el.innerHTML = scenarios.map(sc => {
+    const schedule = formatSchedule(sc);
+    return `
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="dot ${sc.enabled ? 'online' : 'offline'}"></span>
+            <strong style="color:var(--brand-blue)">${esc(sc.name)}</strong>
+            ${sc.priority > 0 ? `<span class="badge">Приоритет: ${sc.priority}</span>` : ""}
+          </div>
+          <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin-top:4px">${sc.id}</div>
+          <div style="margin-top:6px;font-size:13px">
+            📋 ${esc(sc.playlist_name || "—")} &nbsp;
+            ${sc.group_name ? `📂 ${esc(sc.group_name)}` : "🌐 Все экраны"}
+          </div>
+          <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">${schedule}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm" onclick='editScenario(${JSON.stringify(sc).replace(/'/g, "&#39;")})'>✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteScenario('${sc.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function formatSchedule(sc) {
+  const parts = [];
+  // Дни
+  if (sc.days_of_week) {
+    const dayNames = { "1": "Пн", "2": "Вт", "3": "Ср", "4": "Чт", "5": "Пт", "6": "Сб", "7": "Вс" };
+    const days = sc.days_of_week.split(",").map(d => dayNames[d] || d);
+    parts.push("📅 " + days.join(", "));
+  } else {
+    parts.push("📅 Каждый день");
+  }
+  // Время
+  if (sc.time_from && sc.time_to) {
+    parts.push("🕐 " + String(sc.time_from).slice(0, 5) + " – " + String(sc.time_to).slice(0, 5));
+  }
+  // Даты
+  if (sc.date_from || sc.date_to) {
+    parts.push("📆 " + (sc.date_from ? sc.date_from : "∞") + " → " + (sc.date_to ? sc.date_to : "∞"));
+  }
+  return parts.join(" &nbsp;|&nbsp; ");
+}
+
+// ── Редактор ──
+function openEditor() {
+  editId = null;
+  document.getElementById("modalTitle").textContent = "Новый сценарий";
+  document.getElementById("scName").value = "";
+  document.getElementById("scTimeFrom").value = "";
+  document.getElementById("scTimeTo").value = "";
+  document.getElementById("scDateFrom").value = "";
+  document.getElementById("scDateTo").value = "";
+  document.getElementById("scPriority").value = "0";
+  document.getElementById("scEnabled").checked = true;
+
+  // Сброс дней
+  document.querySelectorAll("#daysRow input").forEach(cb => cb.checked = false);
+
+  // Плейлисты
+  document.getElementById("scPlaylist").innerHTML = playlists.map(p =>
+    `<option value="${p.id}">${esc(p.name)}</option>`
+  ).join("");
+
+  // Группы
+  document.getElementById("scGroup").innerHTML = '<option value="">Все экраны</option>' +
+    groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join("");
+
+  document.getElementById("editor").style.display = "flex";
+}
+
+function editScenario(sc) {
+  editId = sc.id;
+  document.getElementById("modalTitle").textContent = "Редактировать сценарий";
+  document.getElementById("scName").value = sc.name || "";
+  document.getElementById("scTimeFrom").value = sc.time_from ? String(sc.time_from).slice(0, 5) : "";
+  document.getElementById("scTimeTo").value = sc.time_to ? String(sc.time_to).slice(0, 5) : "";
+  document.getElementById("scDateFrom").value = sc.date_from || "";
+  document.getElementById("scDateTo").value = sc.date_to || "";
+  document.getElementById("scPriority").value = sc.priority || 0;
+  document.getElementById("scEnabled").checked = sc.enabled;
+
+  // Дни
+  document.querySelectorAll("#daysRow input").forEach(cb => {
+    cb.checked = sc.days_of_week ? sc.days_of_week.split(",").includes(cb.value) : false;
+  });
+
+  // Плейлисты
+  document.getElementById("scPlaylist").innerHTML = playlists.map(p =>
+    `<option value="${p.id}" ${p.id === sc.playlist_id ? "selected" : ""}>${esc(p.name)}</option>`
+  ).join("");
+
+  // Группы
+  document.getElementById("scGroup").innerHTML = '<option value="">Все экраны</option>' +
+    groups.map(g => `<option value="${g.id}" ${g.id === sc.group_id ? "selected" : ""}>${esc(g.name)}</option>`).join("");
+
+  document.getElementById("editor").style.display = "flex";
+}
+
+function closeEditor() {
+  document.getElementById("editor").style.display = "none";
+  editId = null;
+}
+
+function getSelectedDays() {
+  const checked = [...document.querySelectorAll("#daysRow input:checked")].map(cb => cb.value);
+  return checked.length ? checked.join(",") : null;
+}
+
+async function saveScenario() {
+  const name = document.getElementById("scName").value.trim();
+  const playlistId = document.getElementById("scPlaylist").value;
+  if (!name || !playlistId) { alert("Заполните название и плейлист"); return; }
+
+  const body = {
+    name,
+    playlistId,
+    groupId: document.getElementById("scGroup").value || null,
+    daysOfWeek: getSelectedDays(),
+    timeFrom: document.getElementById("scTimeFrom").value || null,
+    timeTo: document.getElementById("scTimeTo").value || null,
+    dateFrom: document.getElementById("scDateFrom").value || null,
+    dateTo: document.getElementById("scDateTo").value || null,
+    enabled: document.getElementById("scEnabled").checked,
+    priority: parseInt(document.getElementById("scPriority").value) || 0
+  };
+
+  const method = editId ? "PUT" : "POST";
+  const url = editId ? `/api/scenarios/${editId}` : "/api/scenarios";
+
+  const res = await fetch(url, {
+    method, headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  if (res.ok) { closeEditor(); load(); }
+}
+
+async function deleteScenario(id) {
+  if (!confirm("Удалить сценарий?")) return;
+  await fetch(`/api/scenarios/${id}`, { method: "DELETE", headers: auth() });
+  load();
+}
+
+async function checkScenarios() {
+  const res = await fetch("/api/scenarios/check", { method: "POST", headers: auth() });
+  const data = await res.json();
+  if (data.applied && data.applied.length > 0) {
+    alert(`Применено к ${data.applied.length} экран(ам)`);
+  } else {
+    alert("Нет активных сценариев для текущего времени");
+  }
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+load();
+</script>
+</body>
+</html>

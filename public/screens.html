@@ -1,71 +1,298 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Screens</title>
-  <link rel="stylesheet" href="/admin/styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Экраны — Digital Signage</title>
+<link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
-      <div style="font-weight:700;color:#1e3a8a;margin-bottom:12px">KASTAMONU<br/>Digital Signage</div>
-      <a class="active" href="/admin/screens.html">📺 Экраны</a>
-      <a href="/admin/playlists.html">📋 Плейлисты</a>
-      <a href="/admin/media.html">📁 Медиа</a>
-    </aside>
-    <main class="content">
-      <h1 class="h1">Экраны и мониторинг</h1>
-      <div id="stats" class="top-stats"></div>
-      <div id="screens" class="grid"></div>
-      <div class="section card">
-        <strong>Ссылка для регистрации экрана:</strong>
-        <p class="mono" id="registerLink"></p>
+<div class="layout">
+  <nav class="sidebar">
+    <a class="logo" href="/admin/screens.html">
+      <div>KASTAMONU</div>
+      <small>Digital Signage</small>
+    </a>
+    <a href="/admin/screens.html" class="active">📺 Экраны</a>
+    <a href="/admin/playlists.html">📋 Плейлисты</a>
+    <a href="/admin/media.html">📁 Медиа</a>
+    <a href="/admin/scenarios.html">⏰ Сценарии</a>
+  </nav>
+  <main class="main">
+    <header>
+      <h1>Экраны и мониторинг</h1>
+      <div class="actions">
+        <button class="btn" onclick="openGroupModal()">📂 Управление группами</button>
       </div>
-    </main>
+    </header>
+
+    <!-- Статистика -->
+    <div id="stats" class="stats-bar"></div>
+
+    <!-- Фильтр по группе -->
+    <div class="filter-bar">
+      <label style="font-size:13px;color:var(--text-secondary)">Группа:</label>
+      <select class="select" id="groupFilter" onchange="renderScreens()" style="width:200px">
+        <option value="">Все группы</option>
+      </select>
+    </div>
+
+    <div id="screens" class="grid"></div>
+
+    <div class="card" style="margin-top:16px;text-align:center">
+      <p style="margin:0 0 4px;color:var(--text-secondary)">Регистрация нового экрана:</p>
+      <code id="regLink" class="mono" style="font-size:12px"></code>
+      <button class="btn btn-sm" onclick="copyRegLink()" style="margin-left:8px">📋 Копировать</button>
+    </div>
+  </main>
+</div>
+
+<!-- Модалка: редактирование экрана -->
+<div class="modal-overlay" id="screenModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Настройки экрана</h2>
+      <button class="btn btn-sm" onclick="closeScreenModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Имя</label>
+        <input class="input" id="scrName" style="width:100%">
+      </div>
+      <div class="form-row">
+        <label>Группа</label>
+        <select class="select" id="scrGroup" style="width:100%">
+          <option value="">Без группы</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Плейлист</label>
+        <select class="select" id="scrPlaylist" style="width:100%">
+          <option value="">Не назначен</option>
+        </select>
+      </div>
+      <button class="btn" onclick="saveScreen()" style="width:100%;margin-top:12px">Сохранить</button>
+    </div>
   </div>
-  <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "/admin/login.html";
-    const headers = { Authorization: "Bearer " + token };
+</div>
 
-    function colorCls(status) {
-      if (status === "online") return "online";
-      if (status === "offline") return "offline";
-      return "waiting";
-    }
+<!-- Модалка: группы -->
+<div class="modal-overlay" id="groupModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Группы экранов</h2>
+      <button class="btn btn-sm" onclick="closeGroupModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="input" id="newGroupName" placeholder="Название группы" style="flex:1">
+        <button class="btn btn-sm" onclick="createGroup()">Создать</button>
+      </div>
+      <div id="groupList"></div>
+    </div>
+  </div>
+</div>
 
-    async function loadScreens() {
-      const res = await fetch("/api/screens", { headers });
-      if (!res.ok) return;
-      const screens = await res.json();
-      const online = screens.filter((s) => s.status === "online").length;
-      const offline = screens.filter((s) => s.status === "offline").length;
-      const waiting = screens.filter((s) => s.status === "waiting").length;
-      document.getElementById("stats").innerHTML =
-        `<div class="chip">Онлайн: ${online}</div><div class="chip">Оффлайн: ${offline}</div><div class="chip">Ожидание: ${waiting}</div><div class="chip">Всего: ${screens.length}</div>`;
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href = "/admin/login.html";
 
-      document.getElementById("screens").innerHTML = screens.map((s) => `
-        <div class="card">
-          <div style="font-weight:600;color:#1e3a8a">${s.name || s.id}</div>
-          <div style="color:#64748b">${s.ip_address || "-"}</div>
-          <div style="margin:12px 0">Плейлист: <span class="mono">${s.playlist_id || "не задан"}</span></div>
-          <div class="status"><span class="dot ${colorCls(s.status)}"></span>${s.status}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:6px">Heartbeat: ${s.last_heartbeat || "-"}</div>
+function auth() { return { Authorization: "Bearer " + token }; }
+
+let screens = [];
+let groups = [];
+let playlists = [];
+let currentScreenId = null;
+let ws = null;
+
+// ── Загрузка ──
+async function loadAll() {
+  const [scRes, grRes, plRes] = await Promise.all([
+    fetch("/api/screens", { headers: auth() }),
+    fetch("/api/screens/groups", { headers: auth() }),
+    fetch("/api/playlists", { headers: auth() })
+  ]);
+  if (!scRes.ok) { localStorage.removeItem("token"); location.href = "/admin/login.html"; return; }
+  screens = await scRes.json();
+  groups = grRes.ok ? await grRes.json() : [];
+  playlists = plRes.ok ? await plRes.json() : [];
+  renderStats();
+  renderGroupFilter();
+  renderScreens();
+  updateRegLink();
+}
+
+function renderStats() {
+  const online = screens.filter(s => s.status === "online").length;
+  const offline = screens.filter(s => s.status === "offline").length;
+  const waiting = screens.filter(s => s.status === "waiting").length;
+  document.getElementById("stats").innerHTML = `
+    <div class="chip"><span class="dot online"></span> Онлайн: ${online}</div>
+    <div class="chip"><span class="dot offline-dot"></span> Оффлайн: ${offline}</div>
+    <div class="chip"><span class="dot waiting-dot"></span> Ожидание: ${waiting}</div>
+    <div class="chip">Всего: ${screens.length}</div>
+  `;
+}
+
+function renderGroupFilter() {
+  const sel = document.getElementById("groupFilter");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Все группы</option>' +
+    groups.map(g => `<option value="${g.id}" ${g.id === current ? "selected" : ""}>${esc(g.name)} (${g.screen_count || 0})</option>`).join("");
+}
+
+function renderScreens() {
+  const filter = document.getElementById("groupFilter").value;
+  const filtered = filter ? screens.filter(s => s.group_id === filter) : screens;
+  const el = document.getElementById("screens");
+
+  if (!filtered.length) {
+    el.innerHTML = '<p style="color:var(--text-tertiary)">Нет экранов. <a href="#reg">Зарегистрируйте</a> первое устройство.</p>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(s => {
+    const hb = s.last_heartbeat ? timeAgo(s.last_heartbeat) : "—";
+    return `
+    <div class="card screen-card" onclick="openScreenModal('${s.id}')">
+      <div class="card-header">
+        <span class="dot ${s.status}"></span>
+        <strong>${esc(s.name || "Экран")}</strong>
+      </div>
+      <div class="card-body">
+        <div class="info-row"><span class="label">IP</span> <span>${s.ip_address || "—"}</span></div>
+        <div class="info-row">
+          <span class="label">Группа</span>
+          <span>${s.group_name ? '<span class="badge">' + esc(s.group_name) + '</span>' : "—"}</span>
         </div>
-      `).join("");
-    }
+        <div class="info-row">
+          <span class="label">Плейлист</span>
+          <span>${s.playlist_name ? '<span class="badge badge-blue">' + esc(s.playlist_name) + '</span>' : "Не назначен"}</span>
+        </div>
+        <div class="info-row"><span class="label">Heartbeat</span> <span>${hb}</span></div>
+      </div>
+      <div class="card-footer">
+        <button class="btn btn-sm" onclick="event.stopPropagation();openScreenModal('${s.id}')">⚙️ Настроить</button>
+      </div>
+    </div>`;
+  }).join("");
+}
 
-    const screenId = crypto.randomUUID();
-    document.getElementById("registerLink").textContent = `${location.origin}/display/${screenId}`;
+function updateRegLink() {
+  const id = crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+  const url = `${location.origin}/display/${id}`;
+  document.getElementById("regLink").textContent = url;
+  document.getElementById("regLink").dataset.url = url;
+}
 
-    const wsProto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${wsProto}://${location.host}/ws`);
-    ws.addEventListener("open", () => ws.send(JSON.stringify({ event: "admin-subscribe", data: {} })));
-    ws.addEventListener("message", () => loadScreens());
+function copyRegLink() {
+  const url = document.getElementById("regLink").dataset.url;
+  navigator.clipboard.writeText(url).then(() => alert("Ссылка скопирована!"));
+}
 
-    loadScreens();
-    setInterval(loadScreens, 5000);
-  </script>
+// ── Модалка экрана ──
+function openScreenModal(id) {
+  currentScreenId = id;
+  const s = screens.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById("scrName").value = s.name || "";
+
+  // Группы
+  document.getElementById("scrGroup").innerHTML = '<option value="">Без группы</option>' +
+    groups.map(g => `<option value="${g.id}" ${g.id === s.group_id ? "selected" : ""}>${esc(g.name)}</option>`).join("");
+
+  // Плейлисты
+  document.getElementById("scrPlaylist").innerHTML = '<option value="">Не назначен</option>' +
+    playlists.map(p => `<option value="${p.id}" ${p.id === s.playlist_id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+
+  document.getElementById("screenModal").style.display = "flex";
+}
+
+function closeScreenModal() {
+  document.getElementById("screenModal").style.display = "none";
+  currentScreenId = null;
+}
+
+async function saveScreen() {
+  const body = {
+    name: document.getElementById("scrName").value.trim() || null,
+    groupId: document.getElementById("scrGroup").value || null,
+    playlistId: document.getElementById("scrPlaylist").value || null
+  };
+  await fetch(`/api/screens/${currentScreenId}`, {
+    method: "PUT", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  closeScreenModal();
+  loadAll();
+}
+
+// ── Группы ──
+function openGroupModal() {
+  document.getElementById("groupModal").style.display = "flex";
+  renderGroups();
+}
+
+function closeGroupModal() {
+  document.getElementById("groupModal").style.display = "none";
+}
+
+function renderGroups() {
+  const el = document.getElementById("groupList");
+  if (!groups.length) {
+    el.innerHTML = '<p style="color:var(--text-tertiary);font-size:13px">Нет групп</p>';
+    return;
+  }
+  el.innerHTML = groups.map(g => `
+    <div class="group-item">
+      <span style="flex:1">${esc(g.name)}</span>
+      <span style="color:var(--text-tertiary);font-size:12px;margin-right:8px">${g.screen_count || 0} экран(ов)</span>
+      <button class="btn btn-sm btn-danger" onclick="deleteGroup('${g.id}')">🗑️</button>
+    </div>
+  `).join("");
+}
+
+async function createGroup() {
+  const name = document.getElementById("newGroupName").value.trim();
+  if (!name) return;
+  await fetch("/api/screens/groups", {
+    method: "POST", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify({ name })
+  });
+  document.getElementById("newGroupName").value = "";
+  loadAll();
+  renderGroups();
+}
+
+async function deleteGroup(id) {
+  if (!confirm("Удалить группу? Экраны останутся без группы.")) return;
+  await fetch(`/api/screens/groups/${id}`, { method: "DELETE", headers: auth() });
+  loadAll();
+  renderGroups();
+}
+
+// ── WebSocket ──
+function connectWs() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => ws.send(JSON.stringify({ event: "admin-subscribe", data: {} }));
+  ws.onmessage = () => loadAll();
+  ws.onclose = () => setTimeout(connectWs, 2000);
+}
+
+// ── Утилиты ──
+function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+function timeAgo(ts) {
+  const diff = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (diff < 60) return "только что";
+  if (diff < 3600) return Math.floor(diff / 60) + " мин назад";
+  return Math.floor(diff / 3600) + " ч назад";
+}
+
+loadAll();
+connectWs();
+setInterval(loadAll, 5000);
+</script>
 </body>
 </html>

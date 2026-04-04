@@ -1,52 +1,105 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Media</title>
-  <link rel="stylesheet" href="/admin/styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Медиа — Digital Signage</title>
+<link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
-      <div style="font-weight:700;color:#1e3a8a;margin-bottom:12px">KASTAMONU<br/>Digital Signage</div>
-      <a href="/admin/screens.html">📺 Экраны</a>
-      <a href="/admin/playlists.html">📋 Плейлисты</a>
-      <a class="active" href="/admin/media.html">📁 Медиа</a>
-    </aside>
-    <main class="content">
-      <h1 class="h1">Медиа</h1>
-      <form id="upload" class="card" style="max-width:500px">
-        <input class="input" type="file" name="file" />
-        <button class="btn" type="submit">Загрузить</button>
-      </form>
-      <div id="list" class="section grid"></div>
-    </main>
-  </div>
-  <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "/admin/login.html";
-    const headers = { Authorization: "Bearer " + token };
-    async function load() {
-      const r = await fetch("/api/media", { headers });
-      const items = await r.json();
-      document.getElementById("list").innerHTML = items.map((m) => `
-        <div class="card">
-          <strong>${m.original_name}</strong>
-          <div>Статус: ${m.conversion_status} (${m.conversion_progress}%)</div>
-          <div class="mono">${m.id}</div>
-        </div>
-      `).join("");
-    }
-    document.getElementById("upload").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      await fetch("/api/media/upload", { method: "POST", headers, body: fd });
-      e.target.reset();
-      load();
-    });
-    load();
-    setInterval(load, 4000);
-  </script>
+<div class="layout">
+  <nav class="sidebar">
+    <a class="logo" href="/admin/screens.html">
+      <div>KASTAMONU</div>
+      <small>Digital Signage</small>
+    </a>
+    <a href="/admin/screens.html">📺 Экраны</a>
+    <a href="/admin/playlists.html">📋 Плейлисты</a>
+    <a href="/admin/media.html" class="active">📁 Медиа</a>
+    <a href="/admin/scenarios.html">⏰ Сценарии</a>
+  </nav>
+  <main class="main">
+    <header>
+      <h1>Медиафайлы</h1>
+      <div class="actions">
+        <form id="uploadForm" style="display:flex;gap:8px;align-items:center">
+          <input type="file" name="file" id="fileInput" accept="image/*,video/*" style="display:none">
+          <button type="button" class="btn" onclick="document.getElementById('fileInput').click()">📤 Загрузить</button>
+          <span id="fileName" style="font-size:13px;color:var(--text-secondary)"></span>
+        </form>
+      </div>
+    </header>
+    <div id="list" class="grid"></div>
+  </main>
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href = "/admin/login.html";
+function auth() { return { Authorization: "Bearer " + token }; }
+
+async function load() {
+  const res = await fetch("/api/media", { headers: auth() });
+  if (!res.ok) { localStorage.removeItem("token"); location.href = "/admin/login.html"; return; }
+  const media = await res.json();
+  render(media);
+}
+
+function render(media) {
+  document.getElementById("list").innerHTML = media.length
+    ? media.map(m => card(m)).join("")
+    : '<p style="color:var(--text-tertiary)">Нет медиафайлов.</p>';
+}
+
+function card(m) {
+  const statusColor = m.conversion_status === "completed" ? "online"
+    : m.conversion_status === "failed" ? "offline" : "waiting";
+  return `<div class="card">
+    <strong style="color:var(--brand-blue)">${esc(m.original_name)}</strong>
+    <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin:4px 0">${m.id}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+      <span class="dot ${statusColor}"></span>
+      <span style="font-size:12px">${statusLabel(m.conversion_status)}</span>
+      ${m.conversion_status === "pending" || m.conversion_status === "processing"
+        ? `<span style="font-size:12px;color:var(--text-tertiary)">(${m.conversion_progress}%)</span>` : ""}
+    </div>
+    <div style="margin-top:8px;text-align:right">
+      <button class="btn btn-sm btn-danger" onclick="del('${m.id}')">🗑️ Удалить</button>
+    </div>
+  </div>`;
+}
+
+function statusLabel(s) {
+  const map = { pending: "Ожидание", processing: "Конвертация", completed: "Готово", failed: "Ошибка" };
+  return map[s] || s;
+}
+
+async function del(id) {
+  if (!confirm("Удалить медиафайл?")) return;
+  await fetch(`/api/media/${id}`, { method: "DELETE", headers: auth() });
+  load();
+}
+
+// Upload
+document.getElementById("fileInput").addEventListener("change", async function () {
+  const file = this.files[0];
+  if (!file) return;
+  document.getElementById("fileName").textContent = file.name;
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
+    if (!res.ok) { alert("Ошибка загрузки: " + res.status); }
+    else { load(); }
+  } catch (e) { alert("Ошибка: " + e.message); }
+  this.value = "";
+  document.getElementById("fileName").textContent = "";
+});
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+load();
+setInterval(load, 4000);
+</script>
 </body>
 </html>
