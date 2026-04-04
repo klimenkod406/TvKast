@@ -1,10 +1,9 @@
 @echo off
-setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
-title Digital Signage Server
+title Digital Signage - Сервер
 if not exist "%~dp0INSTALL_OK" (
-    echo Snachala vypolnite ustanovku: zapustite Install.cmd
+    echo Сначала выполните установку: запустите Install.cmd
     echo.
     pause
     exit /b 1

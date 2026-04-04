@@ -1,22 +1,18 @@
 @echo off
-setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
-title Digital Signage - Master Ustanovki
+title Digital Signage - Установка
 echo.
-echo   Digital Signage - master ustanovki
-echo   Log: %%TEMP%%\DigitalSignage-Setup.log
+echo   Digital Signage - мастер установки
+echo   Лог: %%TEMP%%\DigitalSignage-Setup.log
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; & '%~dp0install.ps1'"
 if errorlevel 1 (
     echo.
-    echo OSHIBKA: Ustanovka zavershilas s oshibkoy.
-    echo Log: %%TEMP%%\DigitalSignage-Setup.log
+    echo ОШИБКА: Установка завершилась с ошибой.
+    echo Лог: %%TEMP%%\DigitalSignage-Setup.log
     echo.
     pause
     exit /b 1
 )
-echo.
-echo Ustanovka zavershena uspešno.
-pause
