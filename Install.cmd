@@ -38,7 +38,10 @@ echo   =============================================
 echo   Установка завершена успешно!
 echo   =============================================
 echo.
-echo   Запуск сервера: Start.cmd
-echo   Админ-панель:   http://localhost:3000/admin/login.html
+echo   Ссылки:
+echo     Админ-панель:  http://localhost:3000/admin/login.html
+echo     Плеер (ТВ):    http://localhost:3000/display/^<screenId^>
+echo.
+echo   Запуск сервера:  Start.cmd
 echo.
 pause

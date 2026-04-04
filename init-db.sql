@@ -1,1 +1,0 @@
-\i database/init.sql
