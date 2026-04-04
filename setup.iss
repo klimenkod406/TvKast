@@ -39,10 +39,10 @@ Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubd
 
 [Icons]
 Name: "{group}\{#MyAppName} — Установка"; Filename: "{app}\Install.ps1"; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
-Name: "{group}\{#MyAppName} — Запуск сервера"; Filename: "{app}\Start.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Start.cmd"
+Name: "{group}\{#MyAppName} — Запуск сервера"; Filename: "{app}\node.exe"; Parameters: """{app}\src\server.js"""; WorkingDir: "{app}"
 Name: "{group}\{#MyAppName} — Админ-панель (браузер)"; Filename: "http://localhost:3000/admin/login.html"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
 Name: "{group}\{#MyAppName} — Лог установки"; Filename: "{%TEMP}\DigitalSignage-Setup.log"
-Name: "{commondesktop}\{#MyAppName} — Запуск"; Filename: "{app}\Start.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Start.cmd"
+Name: "{commondesktop}\{#MyAppName} — Запуск"; Filename: "{app}\node.exe"; Parameters: """{app}\src\server.js"""; WorkingDir: "{app}"
 Name: "{commondesktop}\{#MyAppName} — Документация"; Filename: "{app}\README.md"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
 
 [Run]

@@ -551,7 +551,7 @@ function Main-Install {
                 $serviceRegistered = $true
                 Write-Ok "Сервис DigitalSignage зарегистрирован и запущен"
             } else {
-                Write-Warn "Не удалось запустить сервис — используйте Start.cmd"
+                Write-Warn "Не удалось запустить сервис — запустим вручную"
             }
         }
     }
@@ -562,7 +562,8 @@ function Main-Install {
         $scPath  = Join-Path $desktop "Digital Signage.lnk"
         $WshShell = New-Object -ComObject WScript.Shell
         $sc = $WshShell.CreateShortcut($scPath)
-        $sc.TargetPath       = Join-Path $InstallDir "Start.cmd"
+        $sc.TargetPath       = "node.exe"
+        $sc.Arguments        = "`"$InstallDir\src\server.js`""
         $sc.WorkingDirectory = $InstallDir
         $sc.Description      = "Digital Signage Server"
         $sc.Save()
@@ -600,14 +601,32 @@ function Main-Install {
         Write-Host "    Сервис запущен автоматически как $($Colors.Bold)DigitalSignage$($Colors.Reset)"
         Write-Host "    Остановить:    $($Colors.Dim)net stop DigitalSignage$($Colors.Reset)"
     } else {
-        Write-Host "    $($Colors.Bold)Start.cmd$($Colors.Reset) (двойной щелчок)"
+        Write-Host "    $($Colors.Dim)Сервер будет запущен ниже — нажмите «Да»$($Colors.Reset)"
     }
     Write-Host ""
     Write-Host "  $($Colors.Dim)Лог установки: $LogFile$($Colors.Reset)"
     Write-Host ""
 
     Write-Log "========== Установка завершена =========="
-    Wait-Enter "Нажмите Enter для выхода"
+
+    # --- Запуск сервера, если сервис не зарегистрирован ---
+    if (-not $serviceRegistered) {
+        Write-Host ""
+        $runNow = Show-Menu -Title "Сервис не зарегистрирован — запустить сервер вручную?" -Options @("Да, запустить сервер", "Нет, запущу позже") -DefaultIndex 0
+        if ($runNow -eq 0) {
+            Write-Host ""
+            Write-Host "  $($Colors.Cyan)[INFO]$($Colors.Reset) Запуск сервера..."
+            Write-Host "  $($Colors.Dim)Ctrl+C для остановки$($Colors.Reset)"
+            Write-Host ""
+            & node (Join-Path $InstallDir "src\server.js")
+        }
+    } else {
+        Write-Host ""
+        $runNow = Show-Menu -Title "Установка завершена. Действие:" -Options @("Открыть админ-панель", "Выйти") -DefaultIndex 0
+        if ($runNow -eq 0) {
+            Start-Process "http://localhost:$port/admin/login.html"
+        }
+    }
 }
 
 # ============================================================
