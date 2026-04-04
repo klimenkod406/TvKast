@@ -1,6 +1,6 @@
-# Digital Signage — polnaya ustanovka (Windows)
+# Digital Signage - polnaya ustanovka (Windows)
 # Log: $env:TEMP\DigitalSignage-Setup.log
-# Zapusk: dvoinoy shchelchok po Install.cmd
+# Zapusk: dvoynoy shchelchok po Install.cmd
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -33,45 +33,45 @@ function Test-NodeVersion {
     return $false
 }
 
-Write-Log "========== Digital Signage: установка =========="
-Write-Log "Каталог: $Root"
+Write-Log "========== Digital Signage: ustanovka =========="
+Write-Log "Catalog: $Root"
 
 if (-not (Test-NodeVersion)) {
-    Write-Log "ОШИБКА: Нужен Node.js 18 или новее."
-    Write-Log "Скачайте: https://nodejs.org/ (LTS) и повторите установку."
-    Write-Log "Либо (от администратора): winget install OpenJS.NodeJS.LTS"
-    Read-Host "Нажмите Enter для выхода"
+    Write-Log "OSHIBKA: Nuzhen Node.js 18 ili nozhee."
+    Write-Log "Skachayte: https://nodejs.org/ (LTS) i povtorite ustanovku."
+    Write-Log "Libo (ot administratora): winget install OpenJS.NodeJS.LTS"
+    Read-Host "Nazhmite Enter dlya vykhoda"
     exit 1
 }
 
 $nodeVer = & node -v
 Write-Log "Node.js: $nodeVer"
 
-Write-Log "Установка npm-зависимостей..."
+Write-Log "Ustanovka npm-zavisimostey..."
 & npm install --no-fund --no-audit
 if ($LASTEXITCODE -ne 0) {
-    Write-Log "ОШИБКА: npm install завершился с ошибкой."
-    Read-Host "Нажмите Enter для выхода"
+    Write-Log "OSHIBKA: npm install zavershilsya s oshibkoy."
+    Read-Host "Nazhmite Enter dlya vykhoda"
     exit 1
 }
 
-Write-Log "Создание каталогов media..."
+Write-Log "Sozdanie katalogov media..."
 $dirs = @("media", "media\original", "media\converted", "media\metadata")
 foreach ($d in $dirs) {
     $p = Join-Path $Root $d
     if (-not (Test-Path $p)) {
         New-Item -ItemType Directory -Path $p -Force | Out-Null
-        Write-Log "Создан: $p"
+        Write-Log "Sozdan: $p"
     }
 }
 
 $binDir = Join-Path $env:LOCALAPPDATA "DigitalSignage\bin"
 $ffmpegScript = Join-Path $Root "download-ffmpeg.ps1"
-Write-Log "Проверка / установка ffmpeg (в профиль пользователя, без прав администратора)..."
+Write-Log "Proverka / ustanovka ffmpeg (v profil polzovatelya, bez prav administratora)..."
 try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $ffmpegScript -InstallPath $binDir
 } catch {
-    Write-Log "Предупреждение: ffmpeg: $_"
+    Write-Log "Preduprezhdenie: ffmpeg: $_"
 }
 
 $ff = Join-Path $binDir "ffmpeg.exe"
@@ -84,20 +84,20 @@ if (Test-Path $ff) {
     Write-Log "FFMPEG_PATH=$($cmd.Source) (PATH)"
 } else {
     $env:FFMPEG_PATH = "ffmpeg"
-    Write-Log "Предупреждение: ffmpeg не найден — установите вручную или проверьте интернет."
+    Write-Log "Preduprezhdenie: ffmpeg ne nayden - ustanovite vruchnuyu ili proverite internet."
 }
 
 Write-Host ""
-Write-Host "PostgreSQL: параметры суперпользователя (для создания БД и пользователя приложения)."
-Write-Host "Служба PostgreSQL должна быть запущена (services.msc)."
+Write-Host "PostgreSQL: parametry superpolzovatelya (dlya sozdaniya BD i polzovatelya prilozheniya)."
+Write-Host "Sluzhba PostgreSQL dolzhna byt zapushchena (services.msc)."
 Write-Host ""
-$pgHost = Read-Host "Хост [localhost]"
+$pgHost = Read-Host "Host [localhost]"
 if ([string]::IsNullOrWhiteSpace($pgHost)) { $pgHost = "localhost" }
-$pgPort = Read-Host "Порт [5432]"
+$pgPort = Read-Host "Port [5432]"
 if ([string]::IsNullOrWhiteSpace($pgPort)) { $pgPort = "5432" }
-$pgSuper = Read-Host "Имя суперпользователя [postgres]"
+$pgSuper = Read-Host "Imya superpolzovatelya [postgres]"
 if ([string]::IsNullOrWhiteSpace($pgSuper)) { $pgSuper = "postgres" }
-Write-Host "Пароль суперпользователя (Enter = пустой, если у postgres доверие localhost):"
+Write-Host "Parol superpolzovatelya (Enter = pustoy, yesli u postgres doverie localhost):"
 $sec = Read-Host -AsSecureString
 $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
 $pgPassPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
@@ -107,39 +107,39 @@ $env:POSTGRES_PORT = $pgPort
 $env:POSTGRES_SUPERUSER = $pgSuper
 $env:POSTGRES_SUPERUSER_PASSWORD = $pgPassPlain
 
-Write-Log "Создание БД, пользователя приложения и файла .env..."
+Write-Log "Sozdanie BD, polzovatelya prilozheniya i fayla .env..."
 & node (Join-Path $Root "scripts\ensure-db.js")
 if ($LASTEXITCODE -ne 0) {
-    Write-Log "ОШИБКА: ensure-db. Проверьте пароль, что PostgreSQL запущен и порт $pgPort доступен."
-    Read-Host "Нажмите Enter для выхода"
+    Write-Log "OSHIBKA: ensure-db. Proverte parol, chto PostgreSQL zapushchen i port $pgPort dostupan."
+    Read-Host "Nazhmite Enter dlya vykhoda"
     exit 1
 }
 
 if ((Test-Path $ff) -and $env:FFMPEG_PATH) {
     & node (Join-Path $Root "scripts\set-env-value.js") "FFMPEG_PATH" $env:FFMPEG_PATH
-    Write-Log "Обновлён FFMPEG_PATH в .env"
+    Write-Log "Obnovlyon FFMPEG_PATH v .env"
 }
 
 Write-Host ""
-$adminPass = Read-Host "Пароль входа в админ-панель (логин admin) [случайный]"
+$adminPass = Read-Host "Parol vhoda v admin-panel (login admin) [sluchaynyy]"
 if ([string]::IsNullOrWhiteSpace($adminPass)) {
     $chars = (48..57) + (65..90) + (97..122)
     $adminPass = -join ($chars | Get-Random -Count 16 | ForEach-Object { [char]$_ })
-    Write-Log "Сгенерирован пароль администратора (сохраните): $adminPass"
+    Write-Log "Sgenerirovan parol administratora (sohranite): $adminPass"
     Write-Host ""
-    Write-Host "ВАЖНО: сохраните пароль администратора: $adminPass"
+    Write-Host "VAZHNO: sokhranite parol administratora: $adminPass"
     Write-Host ""
 } else {
-    Write-Log "Пароль администратора задан вручную."
+    Write-Log "Parol administratora zadan vruchnuyu."
 }
 
 $env:ADMIN_PASSWORD = $adminPass
 
-Write-Log "Создание таблиц и учётной записи admin..."
+Write-Log "Sozdanie tablits i uchetnoy zapisi admin..."
 & npm run db:init
 if ($LASTEXITCODE -ne 0) {
-    Write-Log "ОШИБКА: db:init"
-    Read-Host "Нажмите Enter для выхода"
+    Write-Log "OSHIBKA: db:init"
+    Read-Host "Nazhmite Enter dlya vykhoda"
     exit 1
 }
 
@@ -163,11 +163,11 @@ try {
     Write-Log "Ne udalos skopirovat yarlyk na rabochiy stol: $_"
 }
 
-Write-Log "========== Установка завершена =========="
+Write-Log "========== Ustanovka zavershena =========="
 Write-Host ""
-Write-Host "Готово."
-Write-Host "  Запуск сервера: Start.cmd (или ярлык на рабочем столе)"
-Write-Host "  Админ-панель:  http://localhost:3000/admin/login.html"
-Write-Host "  Лог установки: $LogFile"
+Write-Host "Gotovo."
+Write-Host "  Zapusk servera: Start.cmd (ili yarlyk na rabochem stole)"
+Write-Host "  Admin-panel:  http://localhost:3000/admin/login.html"
+Write-Host "  Log ustanovki: $LogFile"
 Write-Host ""
-Read-Host "Нажмите Enter для выхода"
+Read-Host "Nazhmite Enter dlya vykhoda"
