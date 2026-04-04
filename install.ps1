@@ -1,9 +1,16 @@
-# Digital Signage — полная установка (Windows)
-# Лог: $env:TEMP\DigitalSignage-Setup.log
-# Запуск: двойной щелчок по Install.cmd
+# Digital Signage — polnaya ustanovka (Windows)
+# Log: $env:TEMP\DigitalSignage-Setup.log
+# Zapusk: dvoinoy shchelchok po Install.cmd
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Use short path to avoid Cyrillic issues
+try {
+    $Root = (Get-Item $Root).FullName
+} catch {
+    # Fallback: continue with original path
+}
 Set-Location $Root
 
 $LogFile = Join-Path $env:TEMP "DigitalSignage-Setup.log"
@@ -139,16 +146,21 @@ if ($LASTEXITCODE -ne 0) {
 Remove-Item Env:ADMIN_PASSWORD -ErrorAction SilentlyContinue
 
 $marker = Join-Path $Root "INSTALL_OK"
-"installed $(Get-Date -Format o)" | Out-File -FilePath $marker -Encoding utf8
-Write-Log "Создан маркер: INSTALL_OK"
+try {
+    "installed $(Get-Date -Format o)" | Out-File -FilePath $marker -Encoding utf8 -Force
+    Write-Log "Sozdan marker: INSTALL_OK"
+} catch {
+    Write-Log "WARN: Ne udalos sozdat INSTALL_OK: $_"
+}
 
 try {
     $desk = [Environment]::GetFolderPath("Desktop")
-    $shortcut = Join-Path $desk "Digital Signage — запуск.cmd"
+    $shortcutName = "Digital Signage - zapusk.cmd"
+    $shortcut = Join-Path $desk $shortcutName
     Copy-Item (Join-Path $Root "Start.cmd") $shortcut -Force
-    Write-Log "Ярлык на рабочем столе: $shortcut"
+    Write-Log "Yarlyk na rabochem stole: $shortcut"
 } catch {
-    Write-Log "Не удалось скопировать ярлык на рабочий стол: $_"
+    Write-Log "Ne udalos skopirovat yarlyk na rabochiy stol: $_"
 }
 
 Write-Log "========== Установка завершена =========="

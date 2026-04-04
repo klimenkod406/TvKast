@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Test-FfmpegOk {
   param([string]$ExePath)
