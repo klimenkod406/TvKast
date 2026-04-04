@@ -212,10 +212,10 @@ function Test-FfmpegOk {
 }
 
 function Test-PostgresPort {
-    param([string]$Host, [string]$Port)
+    param([string]$PgServer, [string]$Port)
     try {
         $tcp = New-Object System.Net.Sockets.TcpClient
-        $tcp.Connect($Host, [int]$Port)
+        $tcp.Connect($PgServer, [int]$Port)
         $tcp.Close()
         return $true
     } catch { return $false }
@@ -385,8 +385,8 @@ function Main-Install {
     Write-Host "  $($Colors.Dim)(services.msc → PostgreSQL → Запущена)$($Colors.Reset)"
     Write-Host ""
 
-    $pgHost = Read-Host "  Хост PostgreSQL           [localhost]"
-    if ([string]::IsNullOrWhiteSpace($pgHost)) { $pgHost = "localhost" }
+    $pgServer = Read-Host "  Сервер PostgreSQL          [localhost]"
+    if ([string]::IsNullOrWhiteSpace($pgServer)) { $pgServer = "localhost" }
 
     $pgPort = Read-Host "  Порт PostgreSQL             [5432]"
     if ([string]::IsNullOrWhiteSpace($pgPort)) { $pgPort = "5432" }
@@ -400,10 +400,10 @@ function Main-Install {
     if ($null -eq $pgPass) { $pgPass = "" }
 
     Write-Host ""
-    Write-Info "Проверка подключения к PostgreSQL ($pgHost`:$pgPort)..."
-    if (-not (Test-PostgresPort $pgHost $pgPort)) {
+    Write-Info "Проверка подключения к PostgreSQL ($pgServer`:$pgPort)..."
+    if (-not (Test-PostgresPort $pgServer $pgPort)) {
         Write-Err "Не удалось подключиться к PostgreSQL"
-        Write-Host "  Проверьте: 1) Служба запущена  2) Хост/порт верны"
+        Write-Host "  Проверьте: 1) Служба запущена  2) Адрес/порт верны"
         Wait-Enter; exit 1
     }
     Write-Ok "Подключение к PostgreSQL"
@@ -415,7 +415,7 @@ function Main-Install {
         Write-Ok "Создан .env из .env.example"
     }
 
-    $env:POSTGRES_HOST             = $pgHost
+    $env:POSTGRES_HOST             = $pgServer
     $env:POSTGRES_PORT             = $pgPort
     $env:POSTGRES_SUPERUSER        = $pgSuper
     $env:POSTGRES_SUPERUSER_PASSWORD = $pgPass
