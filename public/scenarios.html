@@ -25,7 +25,7 @@
       <h1 data-i18n="scenarios.title"></h1>
       <div class="actions">
         <button class="btn" onclick="openEditor()" data-i18n="scenarios.create"></button>
-        <button class="btn" onclick="checkScenarios()" title="" data-i18n="scenarios.check"></button>
+        <button class="btn" onclick="checkScenarios()" data-i18n="scenarios.check"></button>
       </div>
     </header>
 
@@ -34,12 +34,11 @@
   </main>
 </div>
 
-<!-- РњРѕРґР°Р»РєР° -->
 <div class="modal-overlay" id="editor" style="display:none">
   <div class="modal" style="max-width:520px">
     <div class="modal-header">
       <h2 id="modalTitle" data-i18n="scenarios.new_title"></h2>
-      <button class="btn btn-sm" onclick="closeEditor()">вњ•</button>
+      <button class="btn btn-sm" onclick="closeEditor()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -158,14 +157,14 @@ function renderList() {
           </div>
           <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin-top:4px">${sc.id}</div>
           <div style="margin-top:6px;font-size:13px">
-            рџ“‹ ${esc(sc.playlist_name || "вЂ”")} &nbsp;
-            ${sc.group_name ? `рџ“‚ ${esc(sc.group_name)}` : `рџЊђ ${t("scenarios.all_screens")}`}
+            📋 ${esc(sc.playlist_name || "—")} &nbsp;
+            ${sc.group_name ? `📂 ${esc(sc.group_name)}` : `🌐 ${t("scenarios.all_screens")}`}
           </div>
           <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">${schedule}</div>
         </div>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-sm" onclick='editScenario(${JSON.stringify(sc).replace(/'/g, "&#39;")})'>вњЏпёЏ</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteScenario('${sc.id}')">рџ—‘пёЏ</button>
+          <button class="btn btn-sm" onclick='editScenario(${JSON.stringify(sc).replace(/'/g, "&#39;")})'>✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteScenario('${sc.id}')">🗑️</button>
         </div>
       </div>
     </div>`;
@@ -176,15 +175,15 @@ function formatSchedule(sc) {
   const parts = [];
   if (sc.days_of_week) {
     const days = sc.days_of_week.split(",").map(d => t(dayMap[d] || ""));
-    parts.push("рџ“… " + days.join(", "));
+    parts.push("📅 " + days.join(", "));
   } else {
-    parts.push("рџ“… " + t("scenarios.every_day"));
+    parts.push("📅 " + t("scenarios.every_day"));
   }
   if (sc.time_from && sc.time_to) {
-    parts.push("рџ•ђ " + String(sc.time_from).slice(0, 5) + " вЂ“ " + String(sc.time_to).slice(0, 5));
+    parts.push("🕐 " + String(sc.time_from).slice(0, 5) + " – " + String(sc.time_to).slice(0, 5));
   }
   if (sc.date_from || sc.date_to) {
-    parts.push("рџ“† " + (sc.date_from || "в€ћ") + " в†’ " + (sc.date_to || "в€ћ"));
+    parts.push("📆 " + (sc.date_from || "∞") + " → " + (sc.date_to || "∞"));
   }
   return parts.join(" &nbsp;|&nbsp; ");
 }
@@ -232,7 +231,6 @@ function closeEditor() {
   editId = null;
 }
 
-// Р—Р°РєСЂС‹С‚РёРµ РїРѕ РєР»РёРєСѓ РЅР° РѕРІРµСЂР»РµР№
 document.getElementById("editor").addEventListener("click", function(e) {
   if (e.target === this) closeEditor();
 });
@@ -244,7 +242,7 @@ function getSelectedDays() {
 async function saveScenario() {
   const name = document.getElementById("scName").value.trim();
   const playlistId = document.getElementById("scPlaylist").value;
-  if (!name || !playlistId) { alert("Р—Р°РїРѕР»РЅРёС‚Рµ РЅР°Р·РІР°РЅРёРµ Рё РїР»РµР№Р»РёСЃС‚"); return; }
+  if (!name || !playlistId) { alert("Заполните название и плейлист"); return; }
   const body = {
     name, playlistId,
     groupId: document.getElementById("scGroup").value || null,
@@ -284,7 +282,6 @@ load();
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
 applyLang();
 
-// Р—Р°РєСЂС‹С‚РёРµ РїРѕ ESC
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && document.getElementById("editor").style.display === "flex") closeEditor();
 });

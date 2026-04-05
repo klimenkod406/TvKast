@@ -30,12 +30,11 @@
     </header>
     <div id="list" class="grid"></div>
 
-    <!-- РњРѕРґР°Р»РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РїР»РµР№Р»РёСЃС‚Р° -->
     <div class="modal-overlay" id="editor" style="display:none">
       <div class="modal">
         <div class="modal-header">
           <h2 id="modalTitle" data-i18n="playlists.edit_title"></h2>
-          <button class="btn btn-sm" onclick="closeEditor()">вњ•</button>
+          <button class="btn btn-sm" onclick="closeEditor()">✕</button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
@@ -104,8 +103,8 @@ function renderList() {
           <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin-top:2px">${p.id}</div>
         </div>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-sm" onclick="openEditor('${p.id}')">вњЏпёЏ</button>
-          <button class="btn btn-sm btn-danger" onclick="deletePlaylist('${p.id}')">рџ—‘пёЏ</button>
+          <button class="btn btn-sm" onclick="openEditor('${p.id}')">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deletePlaylist('${p.id}')">🗑️</button>
         </div>
       </div>
     </div>
@@ -146,7 +145,6 @@ function closeEditor() {
   currentPlaylistId = null;
 }
 
-// Р—Р°РєСЂС‹С‚РёРµ РїРѕ РєР»РёРєСѓ РЅР° РѕРІРµСЂР»РµР№
 document.getElementById("editor").addEventListener("click", function(e) {
   if (e.target === this) closeEditor();
 });
@@ -167,10 +165,10 @@ function renderItems(items) {
   el.innerHTML = items.map(item => `
     <div class="media-item" data-id="${item.id}" draggable="true"
          ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dropItem(event)">
-      <span class="drag-handle">в ї</span>
+      <span class="drag-handle">⠿</span>
       <span style="flex:1">${esc(item.original_name)}</span>
-      <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}СЃ</span>
-      <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">вњ•</button>
+      <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}с</span>
+      <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">✕</button>
     </div>
   `).join("");
 }
@@ -245,7 +243,6 @@ load();
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
 applyLang();
 
-// Р—Р°РєСЂС‹С‚РёРµ РїРѕ ESC
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && document.getElementById("editor").style.display === "flex") closeEditor();
 });
