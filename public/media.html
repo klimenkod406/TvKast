@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Медиа — Digital Signage</title>
+<title data-i18n="media.title"></title>
 <link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
@@ -13,18 +13,19 @@
       <div>KASTAMONU</div>
       <small>Digital Signage</small>
     </a>
-    <a href="/admin/screens.html">📺 Экраны</a>
-    <a href="/admin/playlists.html">📋 Плейлисты</a>
-    <a href="/admin/media.html" class="active">📁 Медиа</a>
-    <a href="/admin/scenarios.html">⏰ Сценарии</a>
+    <a href="/admin/screens.html" data-i18n="sidebar.screens"></a>
+    <a href="/admin/playlists.html" data-i18n="sidebar.playlists"></a>
+    <a href="/admin/media.html" class="active" data-i18n="sidebar.media"></a>
+    <a href="/admin/scenarios.html" data-i18n="sidebar.scenarios"></a>
+    <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
   </nav>
   <main class="main">
     <header>
-      <h1>Медиафайлы</h1>
+      <h1 data-i18n="media.title"></h1>
       <div class="actions">
         <form id="uploadForm" style="display:flex;gap:8px;align-items:center">
           <input type="file" name="file" id="fileInput" accept="image/*,video/*" style="display:none">
-          <button type="button" class="btn" onclick="document.getElementById('fileInput').click()">📤 Загрузить</button>
+          <button type="button" class="btn" onclick="document.getElementById('fileInput').click()" data-i18n="media.upload"></button>
           <span id="fileName" style="font-size:13px;color:var(--text-secondary)"></span>
         </form>
       </div>
@@ -33,10 +34,13 @@
   </main>
 </div>
 
+<script src="/admin/i18n.js"></script>
 <script>
 const token = localStorage.getItem("token");
 if (!token) location.href = "/admin/login.html";
 function auth() { return { Authorization: "Bearer " + token }; }
+
+document.getElementById("langSelectWrap").innerHTML = renderLangSelect();
 
 async function load() {
   const res = await fetch("/api/media", { headers: auth() });
@@ -48,40 +52,35 @@ async function load() {
 function render(media) {
   document.getElementById("list").innerHTML = media.length
     ? media.map(m => card(m)).join("")
-    : '<p style="color:var(--text-tertiary)">Нет медиафайлов.</p>';
+    : `<p style="color:var(--text-tertiary)">${t("media.no_media")}</p>`;
 }
 
 function card(m) {
   const statusColor = m.conversion_status === "completed" ? "online"
     : m.conversion_status === "failed" ? "offline" : "waiting";
+  const statusLabel = { pending: t("media.pending"), processing: t("media.processing"), completed: t("media.completed"), failed: t("media.failed") }[m.conversion_status] || m.conversion_status;
   return `<div class="card">
     <strong style="color:var(--brand-blue)">${esc(m.original_name)}</strong>
     <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin:4px 0">${m.id}</div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
       <span class="dot ${statusColor}"></span>
-      <span style="font-size:12px">${statusLabel(m.conversion_status)}</span>
+      <span style="font-size:12px">${statusLabel}</span>
       ${m.conversion_status === "pending" || m.conversion_status === "processing"
         ? `<span style="font-size:12px;color:var(--text-tertiary)">(${m.conversion_progress}%)</span>` : ""}
     </div>
-    ${m.conversion_status === "failed" ? `<div style="margin-top:4px;font-size:11px;color:var(--status-offline);word-break:break-all">${esc(m.error_message || "Неизвестная ошибка")}</div>` : ""}
+    ${m.conversion_status === "failed" ? `<div style="margin-top:4px;font-size:11px;color:var(--status-offline);word-break:break-all">${esc(m.error_message || t("media.unknown_err"))}</div>` : ""}
     <div style="margin-top:8px;text-align:right">
-      <button class="btn btn-sm btn-danger" onclick="del('${m.id}')">🗑️ Удалить</button>
+      <button class="btn btn-sm btn-danger" onclick="del('${m.id}')" data-i18n="media.delete">${t("media.delete")}</button>
     </div>
   </div>`;
 }
 
-function statusLabel(s) {
-  const map = { pending: "Ожидание", processing: "Конвертация", completed: "Готово", failed: "Ошибка" };
-  return map[s] || s;
-}
-
 async function del(id) {
-  if (!confirm("Удалить медиафайл?")) return;
+  if (!confirm(t("media.del_confirm"))) return;
   await fetch(`/api/media/${id}`, { method: "DELETE", headers: auth() });
   load();
 }
 
-// Upload
 document.getElementById("fileInput").addEventListener("change", async function () {
   const file = this.files[0];
   if (!file) return;
@@ -90,9 +89,9 @@ document.getElementById("fileInput").addEventListener("change", async function (
   fd.append("file", file);
   try {
     const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
-    if (!res.ok) { alert("Ошибка загрузки: " + res.status); }
+    if (!res.ok) { alert(t("media.upload_err") + res.status); }
     else { load(); }
-  } catch (e) { alert("Ошибка: " + e.message); }
+  } catch (e) { alert(t("media.err_generic") + e.message); }
   this.value = "";
   document.getElementById("fileName").textContent = "";
 });
@@ -101,6 +100,7 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s || 
 
 load();
 setInterval(load, 4000);
+applyLang();
 </script>
 </body>
 </html>

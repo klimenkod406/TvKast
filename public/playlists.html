@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Плейлисты — Digital Signage</title>
+<title data-i18n="playlists.title"></title>
 <link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
@@ -13,17 +13,18 @@
       <div>KASTAMONU</div>
       <small>Digital Signage</small>
     </a>
-    <a href="/admin/screens.html">📺 Экраны</a>
-    <a href="/admin/playlists.html" class="active">📋 Плейлисты</a>
-    <a href="/admin/media.html">📁 Медиа</a>
-    <a href="/admin/scenarios.html">⏰ Сценарии</a>
+    <a href="/admin/screens.html" data-i18n="sidebar.screens"></a>
+    <a href="/admin/playlists.html" class="active" data-i18n="sidebar.playlists"></a>
+    <a href="/admin/media.html" data-i18n="sidebar.media"></a>
+    <a href="/admin/scenarios.html" data-i18n="sidebar.scenarios"></a>
+    <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
   </nav>
   <main class="main">
     <header>
-      <h1>Плейлисты</h1>
+      <h1 data-i18n="playlists.title"></h1>
       <div class="actions">
-        <input class="input" id="newName" placeholder="Название нового плейлиста" style="width:260px">
-        <button class="btn" onclick="createPlaylist()">＋ Создать</button>
+        <input class="input" id="newName" data-i18n-placeholder="playlists.name_ph" placeholder="" style="width:260px;margin-bottom:0">
+        <button class="btn" onclick="createPlaylist()" data-i18n="playlists.add_btn"></button>
       </div>
     </header>
     <div id="list" class="grid"></div>
@@ -32,32 +33,30 @@
     <div class="modal-overlay" id="editor" style="display:none">
       <div class="modal">
         <div class="modal-header">
-          <h2 id="modalTitle">Редактирование плейлиста</h2>
+          <h2 id="modalTitle" data-i18n="playlists.edit_title"></h2>
           <button class="btn btn-sm" onclick="closeEditor()">✕</button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <input class="input" id="editName" placeholder="Название" style="width:100%">
-            <button class="btn btn-sm" onclick="renamePlaylist()" style="margin-top:6px">Переименовать</button>
+            <input class="input" id="editName" placeholder="" data-i18n-placeholder="playlists.name_ph" style="width:100%">
+            <button class="btn btn-sm" onclick="renamePlaylist()" style="margin-top:6px" data-i18n="playlists.rename"></button>
           </div>
-
           <div class="mb-3">
-            <h3 style="font-size:14px;margin:0 0 8px">Медиа в плейлисте</h3>
+            <h3 style="font-size:14px;margin:0 0 8px" data-i18n="playlists.media_title"></h3>
             <div id="items"></div>
           </div>
-
           <div class="mb-3" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
-            <h3 style="font-size:14px;margin:0 0 8px">Добавить медиа</h3>
+            <h3 style="font-size:14px;margin:0 0 8px" data-i18n="playlists.add_media_title"></h3>
             <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
               <select class="select" id="mediaSelect" style="flex:1;min-width:200px">
-                <option value="">— Выберите медиафайл —</option>
+                <option value="" data-i18n="playlists.select_media"></option>
               </select>
-              <input class="input" id="itemDuration" type="number" value="10" min="1" style="width:80px" title="Длительность (сек)">
-              <button class="btn btn-sm" onclick="addItem()">Добавить</button>
+              <input class="input" id="itemDuration" type="number" value="10" min="1" style="width:80px" data-i18n-placeholder="playlists.duration_ph" placeholder="">
+              <button class="btn btn-sm" onclick="addItem()" data-i18n="playlists.add"></button>
             </div>
             <div style="margin-top:8px">
               <input type="file" id="uploadFile" accept="image/*,video/*" style="display:none" onchange="uploadToPlaylist(this)">
-              <button class="btn btn-sm" onclick="document.getElementById('uploadFile').click()">📤 Загрузить файл в плейлист</button>
+              <button class="btn btn-sm" onclick="document.getElementById('uploadFile').click()" data-i18n="playlists.upload_title"></button>
             </div>
           </div>
         </div>
@@ -66,17 +65,18 @@
   </main>
 </div>
 
+<script src="/admin/i18n.js"></script>
 <script>
 const token = localStorage.getItem("token");
 if (!token) location.href = "/admin/login.html";
-
 function auth() { return { Authorization: "Bearer " + token }; }
+
+document.getElementById("langSelectWrap").innerHTML = renderLangSelect();
 
 let playlists = [];
 let allMedia = [];
 let currentPlaylistId = null;
 
-// ── Загрузка ──
 async function load() {
   const [plRes, mediaRes] = await Promise.all([
     fetch("/api/playlists", { headers: auth() }),
@@ -93,7 +93,7 @@ async function load() {
 function renderList() {
   const el = document.getElementById("list");
   if (!playlists.length) {
-    el.innerHTML = '<p style="color:var(--text-secondary)">Нет плейлистов. Создайте первый.</p>';
+    el.innerHTML = `<p style="color:var(--text-tertiary)">${t("playlists.no_playlists")}</p>`;
     return;
   }
   el.innerHTML = playlists.map(p => `
@@ -115,28 +115,26 @@ function renderList() {
 function populateMediaSelect() {
   const sel = document.getElementById("mediaSelect");
   const ready = allMedia.filter(m => m.conversion_status === "completed");
-  sel.innerHTML = '<option value="">— Выберите медиафайл —</option>' +
+  sel.innerHTML = `<option value="">${t("playlists.select_media")}</option>` +
     ready.map(m => `<option value="${m.id}">${esc(m.original_name)} (${m.mime_type})</option>`).join("");
 }
 
-// ── CRUD плейлистов ──
 async function createPlaylist() {
-  const name = document.getElementById("newName").value.trim() || "Новый плейлист";
+  const name = document.getElementById("newName").value.trim() || "New Playlist";
   const res = await fetch("/api/playlists", { method: "POST", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify({ name, items: [] }) });
   if (res.ok) { document.getElementById("newName").value = ""; load(); }
 }
 
 async function deletePlaylist(id) {
-  if (!confirm("Удалить плейлист?")) return;
+  if (!confirm(t("playlists.del_confirm"))) return;
   await fetch("/api/playlists/" + id, { method: "DELETE", headers: auth() });
   load();
 }
 
-// ── Редактор ──
 async function openEditor(id) {
   currentPlaylistId = id;
   const pl = playlists.find(p => p.id === id);
-  document.getElementById("modalTitle").textContent = pl ? pl.name : id;
+  document.getElementById("modalTitle").textContent = pl ? pl.name : t("playlists.edit_title");
   document.getElementById("editName").value = pl ? pl.name : "";
   document.getElementById("editor").style.display = "flex";
   await loadItems(id);
@@ -158,16 +156,16 @@ async function loadItems(id) {
 function renderItems(items) {
   const el = document.getElementById("items");
   if (!items.length) {
-    el.innerHTML = '<p style="color:var(--text-tertiary);font-size:13px">Плейлист пуст. Добавьте медиа.</p>';
+    el.innerHTML = `<p style="color:var(--text-tertiary);font-size:13px">${t("playlists.empty_playlist")}</p>`;
     return;
   }
-  el.innerHTML = items.map((item, i) => `
+  el.innerHTML = items.map(item => `
     <div class="media-item" data-id="${item.id}" draggable="true"
          ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dropItem(event)">
       <span class="drag-handle">⠿</span>
       <span style="flex:1">${esc(item.original_name)}</span>
       <input class="input" type="number" value="${item.duration_seconds}" min="1" max="3600"
-             style="width:65px" title="Секунды" onchange="updateDuration('${item.id}', this.value)">
+             style="width:65px" data-i18n-placeholder="playlists.duration_ph" placeholder="" onchange="updateDuration('${item.id}', this.value)">
       <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}с</span>
       <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">✕</button>
     </div>
@@ -202,9 +200,8 @@ async function uploadToPlaylist(input) {
   const fd = new FormData();
   fd.append("file", file);
   const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
-  if (!res.ok) { alert("Ошибка загрузки"); input.value = ""; return; }
+  if (!res.ok) { alert(t("playlists.upload_err")); input.value = ""; return; }
   const data = await res.json();
-  // Для изображений — сразу добавляем, для видео — ждём конвертацию
   if (data.status === "completed") {
     await fetch(`/api/playlists/${currentPlaylistId}/items`, {
       method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
@@ -229,7 +226,6 @@ async function updateDuration(itemId, secs) {
   loadItems(currentPlaylistId);
 }
 
-// ── Drag & Drop реордер ──
 let dragId = null;
 function dragStart(e) { dragId = e.currentTarget.dataset.id; e.dataTransfer.effectAllowed = "move"; }
 function dropItem(e) {
@@ -249,10 +245,11 @@ function dropItem(e) {
   dragId = null;
 }
 
-// ── Утилиты ──
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 
 load();
+document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
+applyLang();
 </script>
 </body>
 </html>

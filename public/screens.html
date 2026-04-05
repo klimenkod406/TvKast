@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Экраны — Digital Signage</title>
+<title data-i18n="screens.title"></title>
 <link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
@@ -13,37 +13,33 @@
       <div>KASTAMONU</div>
       <small>Digital Signage</small>
     </a>
-    <a href="/admin/screens.html" class="active">📺 Экраны</a>
-    <a href="/admin/playlists.html">📋 Плейлисты</a>
-    <a href="/admin/media.html">📁 Медиа</a>
-    <a href="/admin/scenarios.html">⏰ Сценарии</a>
+    <a href="/admin/screens.html" class="active" data-i18n="sidebar.screens"></a>
+    <a href="/admin/playlists.html" data-i18n="sidebar.playlists"></a>
+    <a href="/admin/media.html" data-i18n="sidebar.media"></a>
+    <a href="/admin/scenarios.html" data-i18n="sidebar.scenarios"></a>
+    <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
   </nav>
   <main class="main">
     <header>
-      <h1>Экраны и мониторинг</h1>
+      <h1 data-i18n="screens.title"></h1>
       <div class="actions">
-        <button class="btn" onclick="openGroupModal()">📂 Управление группами</button>
+        <button class="btn" onclick="openGroupModal()" data-i18n="screens.manage_groups"></button>
       </div>
     </header>
 
-    <!-- Статистика -->
     <div id="stats" class="stats-bar"></div>
 
-    <!-- Фильтр по группе -->
     <div class="filter-bar">
-      <label style="font-size:13px;color:var(--text-secondary)">Группа:</label>
-      <select class="select" id="groupFilter" onchange="renderScreens()" style="width:200px">
-        <option value="">Все группы</option>
-      </select>
+      <label style="font-size:13px;color:var(--text-secondary)" data-i18n="screens.group_filter"></label>
+      <select class="select" id="groupFilter" onchange="renderScreens()" style="width:200px"></select>
     </div>
 
     <div id="screens" class="grid"></div>
 
-    <!-- Регистрация нового экрана — прижат к низу -->
     <div class="reg-card">
-      <p style="margin:0 0 4px;color:var(--text-secondary)">Регистрация нового экрана:</p>
+      <p style="margin:0 0 4px;color:var(--text-secondary)" data-i18n="screens.reg_link"></p>
       <code id="regLink" class="mono" style="font-size:12px"></code>
-      <button class="btn btn-sm" onclick="copyRegLink()" style="margin-left:8px">📋 Копировать</button>
+      <button class="btn btn-sm" onclick="copyRegLink()" data-i18n="screens.copy"></button>
     </div>
   </main>
 </div>
@@ -52,27 +48,23 @@
 <div class="modal-overlay" id="screenModal" style="display:none">
   <div class="modal">
     <div class="modal-header">
-      <h2>Настройки экрана</h2>
+      <h2 data-i18n="screens.modal_title"></h2>
       <button class="btn btn-sm" onclick="closeScreenModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-row">
-        <label>Имя</label>
+        <label data-i18n="screens.name"></label>
         <input class="input" id="scrName" style="width:100%">
       </div>
       <div class="form-row">
-        <label>Группа</label>
-        <select class="select" id="scrGroup" style="width:100%">
-          <option value="">Без группы</option>
-        </select>
+        <label data-i18n="screens.group"></label>
+        <select class="select" id="scrGroup" style="width:100%"></select>
       </div>
       <div class="form-row">
-        <label>Плейлист</label>
-        <select class="select" id="scrPlaylist" style="width:100%">
-          <option value="">Не назначен</option>
-        </select>
+        <label data-i18n="screens.playlist"></label>
+        <select class="select" id="scrPlaylist" style="width:100%"></select>
       </div>
-      <button class="btn" onclick="saveScreen()" style="width:100%;margin-top:12px">Сохранить</button>
+      <button class="btn" onclick="saveScreen()" style="width:100%;margin-top:12px" data-i18n="screens.save"></button>
     </div>
   </div>
 </div>
@@ -81,19 +73,20 @@
 <div class="modal-overlay" id="groupModal" style="display:none">
   <div class="modal">
     <div class="modal-header">
-      <h2>Группы экранов</h2>
+      <h2 data-i18n="screens.groups_title"></h2>
       <button class="btn btn-sm" onclick="closeGroupModal()">✕</button>
     </div>
     <div class="modal-body">
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="input" id="newGroupName" placeholder="Название группы" style="flex:1">
-        <button class="btn btn-sm" onclick="createGroup()">Создать</button>
+        <input class="input" id="newGroupName" data-i18n-placeholder="screens.group_name_ph" placeholder="" style="flex:1">
+        <button class="btn btn-sm" onclick="createGroup()" data-i18n="screens.create"></button>
       </div>
       <div id="groupList"></div>
     </div>
   </div>
 </div>
 
+<script src="/admin/i18n.js"></script>
 <script>
 const token = localStorage.getItem("token");
 if (!token) location.href = "/admin/login.html";
@@ -106,7 +99,9 @@ let playlists = [];
 let currentScreenId = null;
 let ws = null;
 
-// ── Загрузка ──
+// ── Язык ──
+document.getElementById("langSelectWrap").innerHTML = renderLangSelect();
+
 async function loadAll() {
   const [scRes, grRes, plRes] = await Promise.all([
     fetch("/api/screens", { headers: auth() }),
@@ -128,17 +123,17 @@ function renderStats() {
   const offline = screens.filter(s => s.status === "offline").length;
   const waiting = screens.filter(s => s.status === "waiting").length;
   document.getElementById("stats").innerHTML = `
-    <div class="chip"><span class="dot online"></span> Онлайн: ${online}</div>
-    <div class="chip"><span class="dot offline-dot"></span> Оффлайн: ${offline}</div>
-    <div class="chip"><span class="dot waiting-dot"></span> Ожидание: ${waiting}</div>
-    <div class="chip">Всего: ${screens.length}</div>
+    <div class="chip"><span class="dot online"></span> ${t("screens.online")}: ${online}</div>
+    <div class="chip"><span class="dot offline"></span> ${t("screens.offline")}: ${offline}</div>
+    <div class="chip"><span class="dot waiting"></span> ${t("screens.waiting")}: ${waiting}</div>
+    <div class="chip">${t("screens.total")}: ${screens.length}</div>
   `;
 }
 
 function renderGroupFilter() {
   const sel = document.getElementById("groupFilter");
   const current = sel.value;
-  sel.innerHTML = '<option value="">Все группы</option>' +
+  sel.innerHTML = `<option value="">${t("screens.all_groups")}</option>` +
     groups.map(g => `<option value="${g.id}" ${g.id === current ? "selected" : ""}>${esc(g.name)} (${g.screen_count || 0})</option>`).join("");
 }
 
@@ -148,7 +143,7 @@ function renderScreens() {
   const el = document.getElementById("screens");
 
   if (!filtered.length) {
-    el.innerHTML = '<p style="color:var(--text-tertiary)">Нет экранов. <a href="#reg">Зарегистрируйте</a> первое устройство.</p>';
+    el.innerHTML = `<p style="color:var(--text-tertiary)">${t("screens.no_screens")}</p>`;
     return;
   }
 
@@ -161,19 +156,19 @@ function renderScreens() {
         <strong>${esc(s.name || "Экран")}</strong>
       </div>
       <div class="card-body">
-        <div class="info-row"><span class="label">IP</span> <span>${s.ip_address || "—"}</span></div>
+        <div class="info-row"><span class="label">${t("screens.ip")}</span> <span>${s.ip_address || "—"}</span></div>
         <div class="info-row">
-          <span class="label">Группа</span>
+          <span class="label">${t("screens.group")}</span>
           <span>${s.group_name ? '<span class="badge">' + esc(s.group_name) + '</span>' : "—"}</span>
         </div>
         <div class="info-row">
-          <span class="label">Плейлист</span>
-          <span>${s.playlist_name ? '<span class="badge badge-blue">' + esc(s.playlist_name) + '</span>' : "Не назначен"}</span>
+          <span class="label">${t("screens.playlist")}</span>
+          <span>${s.playlist_name ? '<span class="badge badge-blue">' + esc(s.playlist_name) + '</span>' : t("screens.not_assigned")}</span>
         </div>
-        <div class="info-row"><span class="label">Heartbeat</span> <span>${hb}</span></div>
+        <div class="info-row"><span class="label">${t("screens.heartbeat")}</span> <span>${hb}</span></div>
       </div>
       <div class="card-footer">
-        <button class="btn btn-sm" onclick="event.stopPropagation();openScreenModal('${s.id}')">⚙️ Настроить</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();openScreenModal('${s.id}')" data-i18n="screens.settings">${t("screens.settings")}</button>
       </div>
     </div>`;
   }).join("");
@@ -191,7 +186,7 @@ function updateRegLink() {
 
 function copyRegLink() {
   const url = document.getElementById("regLink").dataset.url;
-  navigator.clipboard.writeText(url).then(() => alert("Ссылка скопирована!"));
+  navigator.clipboard.writeText(url).then(() => alert(t("screens.copy_ok")));
 }
 
 // ── Модалка экрана ──
@@ -200,15 +195,10 @@ function openScreenModal(id) {
   const s = screens.find(x => x.id === id);
   if (!s) return;
   document.getElementById("scrName").value = s.name || "";
-
-  // Группы
-  document.getElementById("scrGroup").innerHTML = '<option value="">Без группы</option>' +
+  document.getElementById("scrGroup").innerHTML = `<option value="">${t("screens.no_group")}</option>` +
     groups.map(g => `<option value="${g.id}" ${g.id === s.group_id ? "selected" : ""}>${esc(g.name)}</option>`).join("");
-
-  // Плейлисты
-  document.getElementById("scrPlaylist").innerHTML = '<option value="">Не назначен</option>' +
+  document.getElementById("scrPlaylist").innerHTML = `<option value="">${t("screens.not_assigned")}</option>` +
     playlists.map(p => `<option value="${p.id}" ${p.id === s.playlist_id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
-
   document.getElementById("screenModal").style.display = "flex";
 }
 
@@ -243,13 +233,13 @@ function closeGroupModal() {
 function renderGroups() {
   const el = document.getElementById("groupList");
   if (!groups.length) {
-    el.innerHTML = '<p style="color:var(--text-tertiary);font-size:13px">Нет групп</p>';
+    el.innerHTML = `<p style="color:var(--text-tertiary);font-size:13px">${t("screens.no_groups")}</p>`;
     return;
   }
   el.innerHTML = groups.map(g => `
     <div class="group-item">
       <span style="flex:1">${esc(g.name)}</span>
-      <span style="color:var(--text-tertiary);font-size:12px;margin-right:8px">${g.screen_count || 0} экран(ов)</span>
+      <span style="color:var(--text-tertiary);font-size:12px;margin-right:8px">${g.screen_count || 0} ${t("screens.screens_count")}</span>
       <button class="btn btn-sm btn-danger" onclick="deleteGroup('${g.id}')">🗑️</button>
     </div>
   `).join("");
@@ -286,14 +276,16 @@ function connectWs() {
 function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
-  if (diff < 60) return "только что";
-  if (diff < 3600) return Math.floor(diff / 60) + " мин назад";
-  return Math.floor(diff / 3600) + " ч назад";
+  if (diff < 60) return t("screens.just_now");
+  if (diff < 3600) return Math.floor(diff / 60) + " " + t("screens.min_ago");
+  return Math.floor(diff / 3600) + " " + t("screens.h_ago");
 }
 
 loadAll();
 connectWs();
 setInterval(loadAll, 5000);
+document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
+applyLang();
 </script>
 </body>
 </html>

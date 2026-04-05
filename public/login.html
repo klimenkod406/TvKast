@@ -1,39 +1,71 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Login</title>
-  <link rel="stylesheet" href="/admin/styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Signage</title>
+<style>
+:root { --kastamonu-blue: #1e3a8a; --kastamonu-green: #10b981; --bg-primary: #f8fafc; --text-primary: #475569; --text-secondary: #64748b; --border: #e2e8f0; --gradient-primary: linear-gradient(135deg, #10b981 0%, #1e3a8a 100%); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg-primary); color: var(--text-primary); font-family: Inter, Segoe UI, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 100%; max-width: 380px; box-shadow: 0 10px 24px rgba(30,58,138,.1); }
+.logo { text-align: center; margin-bottom: 24px; }
+.logo div { font-size: 22px; font-weight: 700; color: var(--kastamonu-blue); }
+.logo small { font-size: 12px; color: var(--text-secondary); }
+h1 { font-size: 20px; color: var(--kastamonu-blue); text-align: center; margin: 0 0 20px; }
+.input { width: 100%; height: 44px; border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; margin-bottom: 12px; font-size: 14px; }
+.input:focus { outline: none; border-color: var(--kastamonu-green); box-shadow: 0 0 0 3px rgba(16,185,129,.1); }
+.btn { width: 100%; background: var(--gradient-primary); border: none; color: #fff; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; margin-top: 8px; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(30,58,138,.2); }
+.err { color: #ef4444; font-size: 13px; text-align: center; margin-top: 8px; display: none; }
+.lang-row { text-align: center; margin-top: 16px; }
+.lang-row select { border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 13px; cursor: pointer; }
+</style>
 </head>
 <body>
-  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
-    <form id="loginForm" class="card" style="width:360px">
-      <h1 class="h1">KASTAMONU Digital Signage</h1>
-      <input class="input" name="login" placeholder="Логин" value="admin" />
-      <input class="input" name="password" type="password" placeholder="Пароль" />
-      <button class="btn" style="width:100%" type="submit">Войти</button>
-      <p id="error" style="color:#ef4444"></p>
-    </form>
+<div class="login-card">
+  <div class="logo">
+    <div>KASTAMONU</div>
+    <small>Digital Signage</small>
   </div>
-  <script>
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const payload = { login: fd.get("login"), password: fd.get("password") };
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        document.getElementById("error").textContent = "Ошибка авторизации";
-        return;
-      }
-      const data = await res.json();
-      localStorage.setItem("token", data.token);
-      window.location.href = "/admin/screens.html";
+  <h1 data-i18n="login.heading"></h1>
+  <input class="input" id="loginInput" data-i18n-placeholder="login.login_label" value="admin">
+  <input class="input" id="passInput" type="password" data-i18n-placeholder="login.password">
+  <button class="btn" id="loginBtn" data-i18n="login.btn"></button>
+  <div class="err" id="err"></div>
+  <div class="lang-row" id="langRow"></div>
+</div>
+
+<script src="/admin/i18n.js"></script>
+<script>
+document.getElementById("langRow").innerHTML = renderLangSelect();
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const login = document.getElementById("loginInput").value.trim();
+  const password = document.getElementById("passInput").value;
+  const err = document.getElementById("err");
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login, password })
     });
-  </script>
+    if (!res.ok) { err.textContent = t("login.error"); err.style.display = "block"; return; }
+    const data = await res.json();
+    localStorage.setItem("token", data.token);
+    location.href = "/admin/screens.html";
+  } catch { err.textContent = t("login.error"); err.style.display = "block"; }
+});
+
+document.getElementById("passInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("loginBtn").click();
+});
+
+// i18n: placeholders
+document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+  el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+});
+applyLang();
+</script>
 </body>
 </html>
