@@ -926,6 +926,6 @@ setInterval(async () => {
   );
 }, 10000);
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Digital Signage server started on http://localhost:${PORT}`);
 });
