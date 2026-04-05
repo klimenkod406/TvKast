@@ -169,19 +169,20 @@ function renderScreens() {
       </div>
       <div class="card-footer">
         <button class="btn btn-sm" onclick="event.stopPropagation();openScreenModal('${s.id}')" data-i18n="screens.settings">${t("screens.settings")}</button>
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteScreen('${s.id}')" title="Удалить экран">🗑️</button>
       </div>
     </div>`;
   }).join("");
 }
 
+// ── Ссылка регистрации — одна для всех экранов, не меняется ──
 function updateRegLink() {
-  const id = crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
-  });
-  const url = `${location.origin}/display/${id}`;
-  document.getElementById("regLink").textContent = url;
-  document.getElementById("regLink").dataset.url = url;
+  const el = document.getElementById("regLink");
+  if (el.dataset.url) return; // уже установлена
+
+  const url = `${location.origin}/display`;
+  el.textContent = url;
+  el.dataset.url = url;
 }
 
 function copyRegLink() {
@@ -217,6 +218,12 @@ async function saveScreen() {
     method: "PUT", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify(body)
   });
   closeScreenModal();
+  loadAll();
+}
+
+async function deleteScreen(id) {
+  if (!confirm("Удалить экран? Это действие нельзя отменить.")) return;
+  await fetch(`/api/screens/${id}`, { method: "DELETE", headers: auth() });
   loadAll();
 }
 

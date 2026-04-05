@@ -51,7 +51,6 @@
               <select class="select" id="mediaSelect" style="flex:1;min-width:200px">
                 <option value="" data-i18n="playlists.select_media"></option>
               </select>
-              <input class="input" id="itemDuration" type="number" value="10" min="1" style="width:80px" data-i18n-placeholder="playlists.duration_ph" placeholder="">
               <button class="btn btn-sm" onclick="addItem()" data-i18n="playlists.add"></button>
             </div>
             <div style="margin-top:8px">
@@ -164,8 +163,6 @@ function renderItems(items) {
          ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dropItem(event)">
       <span class="drag-handle">⠿</span>
       <span style="flex:1">${esc(item.original_name)}</span>
-      <input class="input" type="number" value="${item.duration_seconds}" min="1" max="3600"
-             style="width:65px" data-i18n-placeholder="playlists.duration_ph" placeholder="" onchange="updateDuration('${item.id}', this.value)">
       <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}с</span>
       <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">✕</button>
     </div>
@@ -184,11 +181,10 @@ async function renamePlaylist() {
 
 async function addItem() {
   const mediaId = document.getElementById("mediaSelect").value;
-  const duration = parseInt(document.getElementById("itemDuration").value) || 10;
   if (!mediaId) return;
   await fetch(`/api/playlists/${currentPlaylistId}/items`, {
     method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
-    body: JSON.stringify({ mediaId, duration })
+    body: JSON.stringify({ mediaId })
   });
   loadItems(currentPlaylistId);
   populateMediaSelect();
@@ -205,7 +201,7 @@ async function uploadToPlaylist(input) {
   if (data.status === "completed") {
     await fetch(`/api/playlists/${currentPlaylistId}/items`, {
       method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
-      body: JSON.stringify({ mediaId: data.id, duration: parseInt(document.getElementById("itemDuration").value) || 10 })
+      body: JSON.stringify({ mediaId: data.id })
     });
     loadItems(currentPlaylistId);
   }
@@ -216,14 +212,6 @@ async function uploadToPlaylist(input) {
 async function removeItem(pid, itemId) {
   await fetch(`/api/playlists/${pid}/items/${itemId}`, { method: "DELETE", headers: auth() });
   loadItems(pid);
-}
-
-async function updateDuration(itemId, secs) {
-  await fetch(`/api/playlists/${currentPlaylistId}/items/${itemId}`, {
-    method: "PUT", headers: { ...auth(), "Content-Type": "application/json" },
-    body: JSON.stringify({ duration: parseInt(secs) || 10 })
-  });
-  loadItems(currentPlaylistId);
 }
 
 let dragId = null;

@@ -14,8 +14,12 @@
   <div id="stage">Ожидание контента...</div>
   <script>
     document.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    // Экран сам генерирует себе уникальный ID при первом визите
+    const screenId = sessionStorage.getItem("ds_screen_id") || crypto.randomUUID();
+    sessionStorage.setItem("ds_screen_id", screenId);
+
     const stage = document.getElementById("stage");
-    const screenId = location.pathname.split("/").pop();
     let mediaList = [];
     let index = 0;
 

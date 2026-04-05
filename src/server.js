@@ -302,6 +302,10 @@ app.get("/", (_req, res) => {
 app.get("/display/:screenId", (_req, res) => {
   res.sendFile(path.join(ROOT, "public", "display.html"));
 });
+// Короткая ссылка для ТВ — экран сам сгенерирует себе ID
+app.get("/display", (_req, res) => {
+  res.sendFile(path.join(ROOT, "public", "display.html"));
+});
 
 app.post("/api/auth/login", async (req, res) => {
   const { login, password } = req.body || {};
@@ -522,8 +526,14 @@ app.get("/api/playlists/:id/items", authMiddleware, async (req, res) => {
 // Добавить медиа в плейлист
 app.post("/api/playlists/:id/items", authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { mediaId, duration } = req.body || {};
+  const { mediaId } = req.body || {};
   if (!mediaId) return res.status(400).json({ error: "mediaId required" });
+
+  // Берём длительность из самого медиафайла
+  const { rows: mediaRows } = await pool.query("SELECT duration_seconds FROM media WHERE id=$1", [mediaId]);
+  const dur = mediaRows[0] && mediaRows[0].duration_seconds
+    ? Math.ceil(mediaRows[0].duration_seconds)
+    : 10;
 
   // Определяем максимальный order
   const { rows: maxRows } = await pool.query(
@@ -533,7 +543,7 @@ app.post("/api/playlists/:id/items", authMiddleware, async (req, res) => {
 
   await pool.query(
     'INSERT INTO playlist_items (id, playlist_id, media_id, "order", duration_seconds) VALUES ($1, $2, $3, $4, $5)',
-    [uuidv4(), id, mediaId, nextOrder, duration || 10]
+    [uuidv4(), id, mediaId, nextOrder, dur]
   );
   await pool.query("UPDATE playlists SET updated_at=NOW() WHERE id=$1", [id]);
   res.status(201).json({ ok: true });
@@ -624,6 +634,19 @@ app.put("/api/screens/:screenId", authMiddleware, async (req, res) => {
     }
   }
 
+  res.json({ ok: true });
+});
+
+app.delete("/api/screens/:screenId", authMiddleware, async (req, res) => {
+  const { screenId } = req.params;
+  // Отключить экран если онлайн
+  const ws = socketsByScreenId.get(screenId);
+  if (ws) {
+    ws.close();
+    socketsByScreenId.delete(screenId);
+  }
+  await pool.query("DELETE FROM screens WHERE id=$1", [screenId]);
+  broadcastAdmin("screen-removed", { screenId });
   res.json({ ok: true });
 });
 
