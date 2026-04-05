@@ -6,6 +6,7 @@ package-lock.json
 .env
 .env.local
 .env.*.local
+settings.json
 
 # Media files (uploaded and converted)
 media/

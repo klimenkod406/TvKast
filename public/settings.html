@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title data-i18n="settings.title"></title>
+<link rel="stylesheet" href="/admin/styles.css">
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <a class="logo" href="/admin/screens.html">
+      <div>KASTAMONU</div>
+      <small>Digital Signage</small>
+    </a>
+    <a href="/admin/screens.html" data-i18n="sidebar.screens"></a>
+    <a href="/admin/playlists.html" data-i18n="sidebar.playlists"></a>
+    <a href="/admin/media.html" data-i18n="sidebar.media"></a>
+    <a href="/admin/scenarios.html" data-i18n="sidebar.scenarios"></a>
+    <a href="/admin/settings.html" class="active" data-i18n="sidebar.settings"></a>
+    <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
+  </nav>
+  <main class="main">
+    <header>
+      <h1 data-i18n="settings.title"></h1>
+    </header>
+
+    <div class="card" style="max-width:500px">
+      <h3 style="margin:0 0 4px;color:var(--kastamonu-blue)" data-i18n="settings.default_media"></h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px" data-i18n="settings.default_media_desc"></p>
+
+      <label style="font-size:13px;font-weight:600;color:var(--text-secondary)" data-i18n="settings.select_media"></label>
+      <select class="select" id="globalDefaultMedia" style="width:100%;margin-bottom:12px">
+        <option value="" data-i18n="settings.not_set"></option>
+      </select>
+
+      <div id="preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none;max-height:200px">
+      </div>
+
+      <button class="btn" onclick="saveGlobalDefault()" style="width:100%;margin-top:16px" data-i18n="settings.save"></button>
+      <div id="savedMsg" style="text-align:center;margin-top:8px;font-size:13px;color:var(--kastamonu-green);display:none" data-i18n="settings.saved"></div>
+    </div>
+  </main>
+</div>
+
+<script src="/admin/i18n.js"></script>
+<script>
+const token = localStorage.getItem("token");
+if (!token) location.href = "/admin/login.html";
+function auth() { return { Authorization: "Bearer " + token }; }
+
+document.getElementById("langSelectWrap").innerHTML = renderLangSelect();
+
+let allMedia = [];
+let currentSetting = null;
+
+async function load() {
+  const [mediaRes, settingsRes] = await Promise.all([
+    fetch("/api/media", { headers: auth() }),
+    fetch("/api/settings", { headers: auth() })
+  ]);
+  if (!mediaRes.ok) { localStorage.removeItem("token"); location.href = "/admin/login.html"; return; }
+  allMedia = await mediaRes.json();
+  const settings = settingsRes.ok ? await settingsRes.json() : {};
+  currentSetting = settings.defaultMediaId || null;
+
+  const ready = allMedia.filter(m => m.conversion_status === "completed");
+  const sel = document.getElementById("globalDefaultMedia");
+  sel.innerHTML = `<option value="">${t("settings.not_set")}</option>` +
+    ready.map(m => `<option value="${m.id}" ${m.id === currentSetting ? "selected" : ""}>${esc(m.original_name)} (${m.mime_type})</option>`).join("");
+
+  showPreview(currentSetting);
+}
+
+function showPreview(mediaId) {
+  const el = document.getElementById("preview");
+  if (!mediaId) { el.style.display = "none"; return; }
+  const m = allMedia.find(x => x.id === mediaId);
+  if (!m) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  if (m.mime_type.startsWith("image")) {
+    el.innerHTML = `<img src="${m.gif_path || m.original_path}" style="width:100%;object-fit:contain">`;
+  } else if (m.mime_type.startsWith("video")) {
+    el.innerHTML = `<video src="${m.original_path}" controls style="width:100%"></video>`;
+  } else {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-tertiary)">${esc(m.original_name)}</div>`;
+  }
+}
+
+document.getElementById("globalDefaultMedia").addEventListener("change", function() {
+  showPreview(this.value);
+});
+
+async function saveGlobalDefault() {
+  const val = document.getElementById("globalDefaultMedia").value || null;
+  const res = await fetch("/api/settings", {
+    method: "PUT", headers: { ...auth(), "Content-Type": "application/json" },
+    body: JSON.stringify({ defaultMediaId: val })
+  });
+  if (res.ok) {
+    currentSetting = val;
+    const msg = document.getElementById("savedMsg");
+    msg.style.display = "block";
+    setTimeout(() => { msg.style.display = "none"; }, 2000);
+  }
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+load();
+document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
+applyLang();
+</script>
+</body>
+</html>

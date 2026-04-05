@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -17,6 +17,7 @@
     <a href="/admin/playlists.html" data-i18n="sidebar.playlists"></a>
     <a href="/admin/media.html" data-i18n="sidebar.media"></a>
     <a href="/admin/scenarios.html" data-i18n="sidebar.scenarios"></a>
+    <a href="/admin/settings.html" data-i18n="sidebar.settings"></a>
     <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
   </nav>
   <main class="main">
@@ -44,12 +45,12 @@
   </main>
 </div>
 
-<!-- Модалка: редактирование экрана -->
+<!-- РњРѕРґР°Р»РєР°: СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ СЌРєСЂР°РЅР° -->
 <div class="modal-overlay" id="screenModal" style="display:none">
   <div class="modal">
     <div class="modal-header">
       <h2 data-i18n="screens.modal_title"></h2>
-      <button class="btn btn-sm" onclick="closeScreenModal()">✕</button>
+      <button class="btn btn-sm" onclick="closeScreenModal()">вњ•</button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -64,17 +65,23 @@
         <label data-i18n="screens.playlist"></label>
         <select class="select" id="scrPlaylist" style="width:100%"></select>
       </div>
+      <div class="form-row">
+        <label>РљРѕРЅС‚РµРЅС‚ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</label>
+        <select class="select" id="scrDefaultMedia" style="width:100%">
+          <option value="">РќРµ РІС‹Р±СЂР°РЅ</option>
+        </select>
+      </div>
       <button class="btn" onclick="saveScreen()" style="width:100%;margin-top:12px" data-i18n="screens.save"></button>
     </div>
   </div>
 </div>
 
-<!-- Модалка: группы -->
+<!-- РњРѕРґР°Р»РєР°: РіСЂСѓРїРїС‹ -->
 <div class="modal-overlay" id="groupModal" style="display:none">
   <div class="modal">
     <div class="modal-header">
       <h2 data-i18n="screens.groups_title"></h2>
-      <button class="btn btn-sm" onclick="closeGroupModal()">✕</button>
+      <button class="btn btn-sm" onclick="closeGroupModal()">вњ•</button>
     </div>
     <div class="modal-body">
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -96,22 +103,25 @@ function auth() { return { Authorization: "Bearer " + token }; }
 let screens = [];
 let groups = [];
 let playlists = [];
+let allMedia = [];
 let currentScreenId = null;
 let ws = null;
 
-// ── Язык ──
+// в”Ђв”Ђ РЇР·С‹Рє в”Ђв”Ђ
 document.getElementById("langSelectWrap").innerHTML = renderLangSelect();
 
 async function loadAll() {
-  const [scRes, grRes, plRes] = await Promise.all([
+  const [scRes, grRes, plRes, mediaRes] = await Promise.all([
     fetch("/api/screens", { headers: auth() }),
     fetch("/api/screens/groups", { headers: auth() }),
-    fetch("/api/playlists", { headers: auth() })
+    fetch("/api/playlists", { headers: auth() }),
+    fetch("/api/media", { headers: auth() })
   ]);
   if (!scRes.ok) { localStorage.removeItem("token"); location.href = "/admin/login.html"; return; }
   screens = await scRes.json();
   groups = grRes.ok ? await grRes.json() : [];
   playlists = plRes.ok ? await plRes.json() : [];
+  allMedia = mediaRes.ok ? await mediaRes.json() : [];
   renderStats();
   renderGroupFilter();
   renderScreens();
@@ -148,37 +158,41 @@ function renderScreens() {
   }
 
   el.innerHTML = filtered.map(s => {
-    const hb = s.last_heartbeat ? timeAgo(s.last_heartbeat) : "—";
+    const hb = s.last_heartbeat ? timeAgo(s.last_heartbeat) : "вЂ”";
     return `
     <div class="card screen-card" onclick="openScreenModal('${s.id}')">
       <div class="card-header">
         <span class="dot ${s.status}"></span>
-        <strong>${esc(s.name || "Экран")}</strong>
+        <strong>${esc(s.name || "Р­РєСЂР°РЅ")}</strong>
       </div>
       <div class="card-body">
-        <div class="info-row"><span class="label">${t("screens.ip")}</span> <span>${s.ip_address || "—"}</span></div>
+        <div class="info-row"><span class="label">${t("screens.ip")}</span> <span>${s.ip_address || "вЂ”"}</span></div>
         <div class="info-row">
           <span class="label">${t("screens.group")}</span>
-          <span>${s.group_name ? '<span class="badge">' + esc(s.group_name) + '</span>' : "—"}</span>
+          <span>${s.group_name ? '<span class="badge">' + esc(s.group_name) + '</span>' : "вЂ”"}</span>
         </div>
         <div class="info-row">
           <span class="label">${t("screens.playlist")}</span>
           <span>${s.playlist_name ? '<span class="badge badge-blue">' + esc(s.playlist_name) + '</span>' : t("screens.not_assigned")}</span>
         </div>
+        <div class="info-row">
+          <span class="label">Р¤РѕРЅ</span>
+          <span>${s.default_media_name ? '<span class="badge">' + esc(s.default_media_name) + '</span>' : "вЂ”"}</span>
+        </div>
         <div class="info-row"><span class="label">${t("screens.heartbeat")}</span> <span>${hb}</span></div>
       </div>
       <div class="card-footer">
         <button class="btn btn-sm" onclick="event.stopPropagation();openScreenModal('${s.id}')" data-i18n="screens.settings">${t("screens.settings")}</button>
-        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteScreen('${s.id}')" title="Удалить экран">🗑️</button>
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteScreen('${s.id}')" title="РЈРґР°Р»РёС‚СЊ СЌРєСЂР°РЅ">рџ—‘пёЏ</button>
       </div>
     </div>`;
   }).join("");
 }
 
-// ── Ссылка регистрации — одна для всех экранов, не меняется ──
+// в”Ђв”Ђ РЎСЃС‹Р»РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё вЂ” РѕРґРЅР° РґР»СЏ РІСЃРµС… СЌРєСЂР°РЅРѕРІ, РЅРµ РјРµРЅСЏРµС‚СЃСЏ в”Ђв”Ђ
 function updateRegLink() {
   const el = document.getElementById("regLink");
-  if (el.dataset.url) return; // уже установлена
+  if (el.dataset.url) return; // СѓР¶Рµ СѓСЃС‚Р°РЅРѕРІР»РµРЅР°
 
   const url = `${location.origin}/display`;
   el.textContent = url;
@@ -190,7 +204,7 @@ function copyRegLink() {
   navigator.clipboard.writeText(url).then(() => alert(t("screens.copy_ok")));
 }
 
-// ── Модалка экрана ──
+// в”Ђв”Ђ РњРѕРґР°Р»РєР° СЌРєСЂР°РЅР° в”Ђв”Ђ
 function openScreenModal(id) {
   currentScreenId = id;
   const s = screens.find(x => x.id === id);
@@ -200,6 +214,12 @@ function openScreenModal(id) {
     groups.map(g => `<option value="${g.id}" ${g.id === s.group_id ? "selected" : ""}>${esc(g.name)}</option>`).join("");
   document.getElementById("scrPlaylist").innerHTML = `<option value="">${t("screens.not_assigned")}</option>` +
     playlists.map(p => `<option value="${p.id}" ${p.id === s.playlist_id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+
+  // РњРµРґРёР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ вЂ” РІСЃРµ РіРѕС‚РѕРІС‹Рµ С„Р°Р№Р»С‹
+  const readyMedia = allMedia.filter(m => m.conversion_status === "completed");
+  document.getElementById("scrDefaultMedia").innerHTML = `<option value="">РќРµ РІС‹Р±СЂР°РЅ</option>` +
+    readyMedia.map(m => `<option value="${m.id}" ${m.id === s.default_media_id ? "selected" : ""}>${esc(m.original_name)}</option>`).join("");
+
   document.getElementById("screenModal").style.display = "flex";
 }
 
@@ -208,11 +228,17 @@ function closeScreenModal() {
   currentScreenId = null;
 }
 
+// Р—Р°РєСЂС‹С‚РёРµ РїРѕ РєР»РёРєСѓ РЅР° РѕРІРµСЂР»РµР№
+document.getElementById("screenModal").addEventListener("click", function(e) {
+  if (e.target === this) closeScreenModal();
+});
+
 async function saveScreen() {
   const body = {
     name: document.getElementById("scrName").value.trim() || null,
     groupId: document.getElementById("scrGroup").value || null,
-    playlistId: document.getElementById("scrPlaylist").value || null
+    playlistId: document.getElementById("scrPlaylist").value || null,
+    defaultMediaId: document.getElementById("scrDefaultMedia").value || null
   };
   await fetch(`/api/screens/${currentScreenId}`, {
     method: "PUT", headers: { ...auth(), "Content-Type": "application/json" }, body: JSON.stringify(body)
@@ -222,12 +248,12 @@ async function saveScreen() {
 }
 
 async function deleteScreen(id) {
-  if (!confirm("Удалить экран? Это действие нельзя отменить.")) return;
+  if (!confirm("РЈРґР°Р»РёС‚СЊ СЌРєСЂР°РЅ? Р­С‚Рѕ РґРµР№СЃС‚РІРёРµ РЅРµР»СЊР·СЏ РѕС‚РјРµРЅРёС‚СЊ.")) return;
   await fetch(`/api/screens/${id}`, { method: "DELETE", headers: auth() });
   loadAll();
 }
 
-// ── Группы ──
+// в”Ђв”Ђ Р“СЂСѓРїРїС‹ в”Ђв”Ђ
 function openGroupModal() {
   document.getElementById("groupModal").style.display = "flex";
   renderGroups();
@@ -236,6 +262,11 @@ function openGroupModal() {
 function closeGroupModal() {
   document.getElementById("groupModal").style.display = "none";
 }
+
+// Р—Р°РєСЂС‹С‚РёРµ РїРѕ РєР»РёРєСѓ РЅР° РѕРІРµСЂР»РµР№
+document.getElementById("groupModal").addEventListener("click", function(e) {
+  if (e.target === this) closeGroupModal();
+});
 
 function renderGroups() {
   const el = document.getElementById("groupList");
@@ -247,7 +278,7 @@ function renderGroups() {
     <div class="group-item">
       <span style="flex:1">${esc(g.name)}</span>
       <span style="color:var(--text-tertiary);font-size:12px;margin-right:8px">${g.screen_count || 0} ${t("screens.screens_count")}</span>
-      <button class="btn btn-sm btn-danger" onclick="deleteGroup('${g.id}')">🗑️</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteGroup('${g.id}')">рџ—‘пёЏ</button>
     </div>
   `).join("");
 }
@@ -264,13 +295,13 @@ async function createGroup() {
 }
 
 async function deleteGroup(id) {
-  if (!confirm("Удалить группу? Экраны останутся без группы.")) return;
+  if (!confirm("РЈРґР°Р»РёС‚СЊ РіСЂСѓРїРїСѓ? Р­РєСЂР°РЅС‹ РѕСЃС‚Р°РЅСѓС‚СЃСЏ Р±РµР· РіСЂСѓРїРїС‹.")) return;
   await fetch(`/api/screens/groups/${id}`, { method: "DELETE", headers: auth() });
   loadAll();
   renderGroups();
 }
 
-// ── WebSocket ──
+// в”Ђв”Ђ WebSocket в”Ђв”Ђ
 function connectWs() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}/ws`);
@@ -279,7 +310,7 @@ function connectWs() {
   ws.onclose = () => setTimeout(connectWs, 2000);
 }
 
-// ── Утилиты ──
+// в”Ђв”Ђ РЈС‚РёР»РёС‚С‹ в”Ђв”Ђ
 function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
@@ -293,6 +324,14 @@ connectWs();
 setInterval(loadAll, 5000);
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
 applyLang();
+
+// в”Ђв”Ђ Р—Р°РєСЂС‹С‚РёРµ РјРѕРґР°Р»РѕРє РїРѕ ESC в”Ђв”Ђ
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (document.getElementById("screenModal").style.display === "flex") closeScreenModal();
+    else if (document.getElementById("groupModal").style.display === "flex") closeGroupModal();
+  }
+});
 </script>
 </body>
 </html>

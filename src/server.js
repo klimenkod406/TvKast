@@ -332,10 +332,13 @@ app.post("/api/auth/login", async (req, res) => {
 app.get("/api/screens", authMiddleware, async (_req, res) => {
   const { rows } = await pool.query(
     `SELECT s.id, s.name, host(s.ip_address) AS ip_address, s.group_id, g.name AS group_name,
-            s.playlist_id, p.name AS playlist_name, s.status, s.last_heartbeat, s.created_at
+            s.playlist_id, p.name AS playlist_name,
+            s.default_media_id, m.original_name AS default_media_name,
+            s.status, s.last_heartbeat, s.created_at
        FROM screens s
        LEFT JOIN screen_groups g ON g.id = s.group_id
        LEFT JOIN playlists p ON p.id = s.playlist_id
+       LEFT JOIN media m ON m.id = s.default_media_id
       ORDER BY s.created_at DESC`
   );
   res.json(rows);
@@ -363,10 +366,53 @@ app.patch("/api/screens/bulk-playlist", authMiddleware, async (req, res) => {
 
 app.get("/api/display/:screenId/config", async (req, res) => {
   const { screenId } = req.params;
-  const screenResult = await pool.query("SELECT playlist_id FROM screens WHERE id=$1", [screenId]);
+  const screenResult = await pool.query(
+    "SELECT playlist_id, default_media_id FROM screens WHERE id=$1", [screenId]
+  );
   const screen = screenResult.rows[0];
   if (!screen) return res.status(404).json({ error: "Screen not found" });
-  const mediaList = await getPlaylistMedia(screen.playlist_id);
+
+  let mediaList = await getPlaylistMedia(screen.playlist_id);
+
+  // 1. Если плейлист пуст — пробуем индивидуальное медиа по умолчанию
+  if ((!mediaList || mediaList.length === 0) && screen.default_media_id) {
+    const { rows } = await pool.query(
+      `SELECT id AS media_id, original_name, mime_type,
+              COALESCE(gif_path, original_path) AS src,
+              COALESCE(duration_seconds, 10) AS duration
+         FROM media WHERE id = $1`,
+      [screen.default_media_id]
+    );
+    if (rows[0]) {
+      mediaList = [{
+        id: rows[0].media_id, name: rows[0].original_name,
+        type: rows[0].mime_type, src: rows[0].src.replace(/\\/g, "/"),
+        duration: Math.ceil(rows[0].duration),
+      }];
+    }
+  }
+
+  // 2. Если всё ещё пусто — пробуем глобальное медиа по умолчанию
+  if (!mediaList || mediaList.length === 0) {
+    const settings = loadSettings();
+    if (settings.defaultMediaId) {
+      const { rows } = await pool.query(
+        `SELECT id AS media_id, original_name, mime_type,
+                COALESCE(gif_path, original_path) AS src,
+                COALESCE(duration_seconds, 10) AS duration
+           FROM media WHERE id = $1`,
+        [settings.defaultMediaId]
+      );
+      if (rows[0]) {
+        mediaList = [{
+          id: rows[0].media_id, name: rows[0].original_name,
+          type: rows[0].mime_type, src: rows[0].src.replace(/\\/g, "/"),
+          duration: Math.ceil(rows[0].duration),
+        }];
+      }
+    }
+  }
+
   const pendingResult = await pool.query(
     "SELECT id, payload FROM pending_commands WHERE screen_id=$1 AND status='pending' ORDER BY created_at ASC",
     [screenId]
@@ -374,7 +420,7 @@ app.get("/api/display/:screenId/config", async (req, res) => {
   res.json({
     screenId,
     playlistId: screen.playlist_id,
-    mediaList,
+    mediaList: mediaList || [],
     pendingCommands: pendingResult.rows.map((r) => r.payload),
   });
 });
@@ -613,15 +659,16 @@ app.delete("/api/screens/groups/:id", authMiddleware, async (req, res) => {
 
 app.put("/api/screens/:screenId", authMiddleware, async (req, res) => {
   const { screenId } = req.params;
-  const { name, groupId, playlistId } = req.body || {};
+  const { name, groupId, playlistId, defaultMediaId } = req.body || {};
 
   const updates = [];
   const values = [];
   let idx = 1;
 
-  if (name !== undefined)       { updates.push(`name=$${idx++}`); values.push(name); }
-  if (groupId !== undefined)    { updates.push(`group_id=$${idx++}`); values.push(groupId || null); }
-  if (playlistId !== undefined) { updates.push(`playlist_id=$${idx++}`); values.push(playlistId || null); }
+  if (name !== undefined)         { updates.push(`name=$${idx++}`); values.push(name); }
+  if (groupId !== undefined)      { updates.push(`group_id=$${idx++}`); values.push(groupId || null); }
+  if (playlistId !== undefined)   { updates.push(`playlist_id=$${idx++}`); values.push(playlistId || null); }
+  if (defaultMediaId !== undefined) { updates.push(`default_media_id=$${idx++}`); values.push(defaultMediaId || null); }
 
   if (updates.length > 0) {
     updates.push("updated_at=NOW()");
@@ -639,14 +686,45 @@ app.put("/api/screens/:screenId", authMiddleware, async (req, res) => {
 
 app.delete("/api/screens/:screenId", authMiddleware, async (req, res) => {
   const { screenId } = req.params;
-  // Отключить экран если онлайн
+
+  // Сначала отключаем WS-соединение (чтобы close-хендлер не конфликтовал)
   const ws = socketsByScreenId.get(screenId);
   if (ws) {
+    ws.screenId = null; // close-хендлер пропустит обновление
     ws.close();
     socketsByScreenId.delete(screenId);
   }
+
+  // Удаляем экран и связанные данные (команды удалятся по ON DELETE CASCADE)
   await pool.query("DELETE FROM screens WHERE id=$1", [screenId]);
   broadcastAdmin("screen-removed", { screenId });
+  res.json({ ok: true });
+});
+
+// ============================================================
+// ГЛОБАЛЬНЫЕ НАСТРОЙКИ (файл settings.json)
+// ============================================================
+const SETTINGS_PATH = path.join(ROOT, "settings.json");
+
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_PATH)) return JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveSettings(data) {
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(data, null, 2), "utf8");
+}
+
+app.get("/api/settings", authMiddleware, async (_req, res) => {
+  res.json(loadSettings());
+});
+
+app.put("/api/settings", authMiddleware, async (req, res) => {
+  const current = loadSettings();
+  const next = { ...current, ...req.body };
+  saveSettings(next);
   res.json({ ok: true });
 });
 

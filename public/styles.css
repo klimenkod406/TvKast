@@ -94,8 +94,8 @@ body { margin: 0; background: var(--bg-primary); color: var(--text-primary); fon
 .badge-blue { background: #eff6ff; color: var(--kastamonu-blue); border-color: #bfdbfe; }
 
 /* ── Modal ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.modal { background: #fff; border-radius: 16px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 1000; cursor: pointer; }
+.modal { background: #fff; border-radius: 16px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); cursor: default; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .modal-header h2 { font-size: 18px; color: var(--kastamonu-blue); margin: 0; }
 .modal-body { padding: 20px; }

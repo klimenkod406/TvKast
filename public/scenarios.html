@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -17,6 +17,7 @@
     <a href="/admin/playlists.html" data-i18n="sidebar.playlists"></a>
     <a href="/admin/media.html" data-i18n="sidebar.media"></a>
     <a href="/admin/scenarios.html" class="active" data-i18n="sidebar.scenarios"></a>
+    <a href="/admin/settings.html" data-i18n="sidebar.settings"></a>
     <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
   </nav>
   <main class="main">
@@ -33,12 +34,12 @@
   </main>
 </div>
 
-<!-- Модалка -->
+<!-- РњРѕРґР°Р»РєР° -->
 <div class="modal-overlay" id="editor" style="display:none">
   <div class="modal" style="max-width:520px">
     <div class="modal-header">
       <h2 id="modalTitle" data-i18n="scenarios.new_title"></h2>
-      <button class="btn btn-sm" onclick="closeEditor()">✕</button>
+      <button class="btn btn-sm" onclick="closeEditor()">вњ•</button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -157,14 +158,14 @@ function renderList() {
           </div>
           <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin-top:4px">${sc.id}</div>
           <div style="margin-top:6px;font-size:13px">
-            📋 ${esc(sc.playlist_name || "—")} &nbsp;
-            ${sc.group_name ? `📂 ${esc(sc.group_name)}` : `🌐 ${t("scenarios.all_screens")}`}
+            рџ“‹ ${esc(sc.playlist_name || "вЂ”")} &nbsp;
+            ${sc.group_name ? `рџ“‚ ${esc(sc.group_name)}` : `рџЊђ ${t("scenarios.all_screens")}`}
           </div>
           <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">${schedule}</div>
         </div>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-sm" onclick='editScenario(${JSON.stringify(sc).replace(/'/g, "&#39;")})'>✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteScenario('${sc.id}')">🗑️</button>
+          <button class="btn btn-sm" onclick='editScenario(${JSON.stringify(sc).replace(/'/g, "&#39;")})'>вњЏпёЏ</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteScenario('${sc.id}')">рџ—‘пёЏ</button>
         </div>
       </div>
     </div>`;
@@ -175,15 +176,15 @@ function formatSchedule(sc) {
   const parts = [];
   if (sc.days_of_week) {
     const days = sc.days_of_week.split(",").map(d => t(dayMap[d] || ""));
-    parts.push("📅 " + days.join(", "));
+    parts.push("рџ“… " + days.join(", "));
   } else {
-    parts.push("📅 " + t("scenarios.every_day"));
+    parts.push("рџ“… " + t("scenarios.every_day"));
   }
   if (sc.time_from && sc.time_to) {
-    parts.push("🕐 " + String(sc.time_from).slice(0, 5) + " – " + String(sc.time_to).slice(0, 5));
+    parts.push("рџ•ђ " + String(sc.time_from).slice(0, 5) + " вЂ“ " + String(sc.time_to).slice(0, 5));
   }
   if (sc.date_from || sc.date_to) {
-    parts.push("📆 " + (sc.date_from || "∞") + " → " + (sc.date_to || "∞"));
+    parts.push("рџ“† " + (sc.date_from || "в€ћ") + " в†’ " + (sc.date_to || "в€ћ"));
   }
   return parts.join(" &nbsp;|&nbsp; ");
 }
@@ -231,6 +232,11 @@ function closeEditor() {
   editId = null;
 }
 
+// Р—Р°РєСЂС‹С‚РёРµ РїРѕ РєР»РёРєСѓ РЅР° РѕРІРµСЂР»РµР№
+document.getElementById("editor").addEventListener("click", function(e) {
+  if (e.target === this) closeEditor();
+});
+
 function getSelectedDays() {
   return [...document.querySelectorAll("#daysRow input:checked")].map(cb => cb.value).join(",") || null;
 }
@@ -238,7 +244,7 @@ function getSelectedDays() {
 async function saveScenario() {
   const name = document.getElementById("scName").value.trim();
   const playlistId = document.getElementById("scPlaylist").value;
-  if (!name || !playlistId) { alert("Заполните название и плейлист"); return; }
+  if (!name || !playlistId) { alert("Р—Р°РїРѕР»РЅРёС‚Рµ РЅР°Р·РІР°РЅРёРµ Рё РїР»РµР№Р»РёСЃС‚"); return; }
   const body = {
     name, playlistId,
     groupId: document.getElementById("scGroup").value || null,
@@ -277,6 +283,11 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s || 
 load();
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
 applyLang();
+
+// Р—Р°РєСЂС‹С‚РёРµ РїРѕ ESC
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("editor").style.display === "flex") closeEditor();
+});
 </script>
 </body>
 </html>

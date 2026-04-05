@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -17,6 +17,7 @@
     <a href="/admin/playlists.html" class="active" data-i18n="sidebar.playlists"></a>
     <a href="/admin/media.html" data-i18n="sidebar.media"></a>
     <a href="/admin/scenarios.html" data-i18n="sidebar.scenarios"></a>
+    <a href="/admin/settings.html" data-i18n="sidebar.settings"></a>
     <div id="langSelectWrap" style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)"></div>
   </nav>
   <main class="main">
@@ -29,12 +30,12 @@
     </header>
     <div id="list" class="grid"></div>
 
-    <!-- Модалка редактирования плейлиста -->
+    <!-- РњРѕРґР°Р»РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РїР»РµР№Р»РёСЃС‚Р° -->
     <div class="modal-overlay" id="editor" style="display:none">
       <div class="modal">
         <div class="modal-header">
           <h2 id="modalTitle" data-i18n="playlists.edit_title"></h2>
-          <button class="btn btn-sm" onclick="closeEditor()">✕</button>
+          <button class="btn btn-sm" onclick="closeEditor()">вњ•</button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
@@ -103,8 +104,8 @@ function renderList() {
           <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin-top:2px">${p.id}</div>
         </div>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-sm" onclick="openEditor('${p.id}')">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deletePlaylist('${p.id}')">🗑️</button>
+          <button class="btn btn-sm" onclick="openEditor('${p.id}')">вњЏпёЏ</button>
+          <button class="btn btn-sm btn-danger" onclick="deletePlaylist('${p.id}')">рџ—‘пёЏ</button>
         </div>
       </div>
     </div>
@@ -145,6 +146,11 @@ function closeEditor() {
   currentPlaylistId = null;
 }
 
+// Р—Р°РєСЂС‹С‚РёРµ РїРѕ РєР»РёРєСѓ РЅР° РѕРІРµСЂР»РµР№
+document.getElementById("editor").addEventListener("click", function(e) {
+  if (e.target === this) closeEditor();
+});
+
 async function loadItems(id) {
   const res = await fetch(`/api/playlists/${id}/items`, { headers: auth() });
   if (!res.ok) return;
@@ -161,10 +167,10 @@ function renderItems(items) {
   el.innerHTML = items.map(item => `
     <div class="media-item" data-id="${item.id}" draggable="true"
          ondragstart="dragStart(event)" ondragover="event.preventDefault()" ondrop="dropItem(event)">
-      <span class="drag-handle">⠿</span>
+      <span class="drag-handle">в ї</span>
       <span style="flex:1">${esc(item.original_name)}</span>
-      <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}с</span>
-      <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">✕</button>
+      <span style="color:var(--text-tertiary);font-size:12px;min-width:30px">${item.duration_seconds}СЃ</span>
+      <button class="btn btn-sm btn-danger" onclick="removeItem('${currentPlaylistId}','${item.id}')">вњ•</button>
     </div>
   `).join("");
 }
@@ -238,6 +244,11 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s || 
 load();
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
 applyLang();
+
+// Р—Р°РєСЂС‹С‚РёРµ РїРѕ ESC
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("editor").style.display === "flex") closeEditor();
+});
 </script>
 </body>
 </html>

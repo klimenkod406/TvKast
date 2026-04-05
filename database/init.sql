@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS screens (
   ip_address INET,
   group_id UUID REFERENCES screen_groups(id) ON DELETE SET NULL,
   playlist_id UUID REFERENCES playlists(id),
+  -- Медиа по умолчанию: показывается если плейлист не назначен или пуст
+  default_media_id UUID REFERENCES media(id) ON DELETE SET NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'waiting',
   last_heartbeat TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),

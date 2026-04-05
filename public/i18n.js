@@ -27,6 +27,9 @@ const T = {
   "sidebar.scenarios": {
     ru: "⏰ Сценарии",   en: "⏰ Scenarios",   tr: "⏰ Senaryolar",  it: "⏰ Scenari",    ro: "⏰ Scenarii",   bg: "⏰ Сценарии",   bs: "⏰ Scenariji"
   },
+  "sidebar.settings": {
+    ru: "⚙️ Настройки",  en: "⚙️ Settings",    tr: "⚙️ Ayarlar",     it: "⚙️ Impostazioni", ro: "⚙️ Setări",    bg: "⚙️ Настройки",  bs: "⚙️ Postavke"
+  },
 
   /* ── Screens ── */
   "screens.title": {
@@ -144,6 +147,35 @@ const T = {
   "scenarios.sun": { ru: "Вс", en: "Sun", tr: "Paz", it: "Dom", ro: "Dum", bg: "Нед", bs: "Ned" },
   "scenarios.all_screens_label": { ru: "Все экраны", en: "All screens", tr: "Tüm ekranlar", it: "Tutti gli schermi", ro: "Toate ecranele", bg: "Всички екрани", bs: "Svi ekrani" },
   "scenarios.not_assigned": { ru: "—", en: "—", tr: "—", it: "—", ro: "—", bg: "—", bs: "—" },
+
+  /* ── Settings ── */
+  "settings.title": {
+    ru: "Настройки", en: "Settings", tr: "Ayarlar", it: "Impostazioni", ro: "Setări", bg: "Настройки", bs: "Postavke"
+  },
+  "settings.default_media": {
+    ru: "Контент по умолчанию для всех экранов", en: "Default content for all screens", tr: "Tüm ekranlar için varsayılan içerik", it: "Contenuto predefinito per tutti gli schermi", ro: "Conținut implicit pentru toate ecranele", bg: "Съдържание по подразбиране за всички екрани", bs: "Zadani sadržaj za sve ekrane"
+  },
+  "settings.default_media_desc": {
+    ru: "Это медиа будет показываться на всех экранах, у которых не назначен плейлист и не выбран свой контент по умолчанию.",
+    en: "This media will be shown on all screens that have no playlist assigned and no individual default content.",
+    tr: "Bu medya, atanmış oynatma listesi ve bireysel varsayılan içeriği olmayan tüm ekranlarda gösterilecektir.",
+    it: "Questo media verrà mostrato su tutti gli schermi che non hanno una playlist assegnata e nessun contenuto predefinito individuale.",
+    ro: "Acest media va fi afișat pe toate ecranele care nu au un playlist asignat și nici un conținut implicit individual.",
+    bg: "Тази медия ще се показва на всички екрани, които нямат назначен плейлист и нямат индивидуално съдържание по подразбиране.",
+    bs: "Ovaj medij će se prikazivati na svim ekranima koji nemaju dodijeljenu plejlistu niti pojedinačni zadani sadržaj."
+  },
+  "settings.select_media": {
+    ru: "Выберите медиафайл", en: "Select media file", tr: "Medya dosyası seçin", it: "Seleziona file", ro: "Selectează fișier", bg: "Изберете файл", bs: "Odaberite datoteku"
+  },
+  "settings.not_set": {
+    ru: "Не выбран", en: "Not set", tr: "Ayarlanmadı", it: "Non impostato", ro: "Nesetat", bg: "Не е избрано", bs: "Nije postavljeno"
+  },
+  "settings.save": {
+    ru: "Сохранить", en: "Save", tr: "Kaydet", it: "Salva", ro: "Salvează", bg: "Запази", bs: "Sačuvaj"
+  },
+  "settings.saved": {
+    ru: "✓ Сохранено", en: "✓ Saved", tr: "✓ Kaydedildi", it: "✓ Salvato", ro: "✓ Salvat", bg: "✓ Запазено", bs: "✓ Sačuvano"
+  },
 
   /* ── Login ── */
   "login.title": {

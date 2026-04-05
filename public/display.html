@@ -25,7 +25,11 @@
 
     function render(item) {
       if (!item) {
-        stage.textContent = "Нет контента";
+        stage.innerHTML = `<div style="text-align:center;color:#888;font-size:24px">
+          <div style="font-size:48px;margin-bottom:16px">📺</div>
+          <div>Нет контента</div>
+          <div style="font-size:14px;margin-top:8px;color:#555">Назначьте плейлист или контент по умолчанию</div>
+        </div>`;
         return;
       }
       if (item.type.startsWith("image") || item.src.endsWith(".gif")) {
