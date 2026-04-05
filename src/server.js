@@ -188,22 +188,26 @@ function getVideoDuration(inputPath) {
 
 function convertToGif(inputPath, outputPath, duration, progressCb) {
   return new Promise((resolve, reject) => {
-    // Рассчитываем FPS так, чтобы GIF имел ту же длительность, что и исходное видео
-    // Цель: максимум 15 FPS, но при этом общая длительность GIF = duration
-    // Для длительности > 10 секунд: fps=15, для коротких видео: подбираем
     const targetFps = duration && duration > 0 ? Math.min(15, Math.max(5, Math.ceil(300 / duration))) : 15;
 
+    // Гарантируем существование директории вывода
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+
     const args = [
-      "-i",
-      inputPath,
-      "-vf",
-      `fps=${targetFps},scale=1920:-1:flags=lanczos`,
-      "-gifflags", "-diffcrop",
+      "-nostdin",
+      "-i", inputPath,
+      "-vf", `fps=${targetFps},scale=1920:-1:flags=lanczos`,
       "-y",
       outputPath,
     ];
+
+    logError("FFMPEG_ARGS", { cmd: FFMPEG_PATH, args });
+
     const ff = spawn(FFMPEG_PATH, args);
+    let stderrBuf = "";
+
     ff.stderr.on("data", (buf) => {
+      stderrBuf += String(buf);
       const line = String(buf);
       const match = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
       if (match && duration && duration > 0) {
@@ -212,18 +216,23 @@ function convertToGif(inputPath, outputPath, duration, progressCb) {
         const percent = Math.min(99, Math.round((currentSeconds / duration) * 100));
         progressCb(percent);
       } else if (match) {
-        // Если длительность неизвестна, показываем примерный прогресс
         const [, hh, mm, ss] = match;
         const seconds = Number(hh) * 3600 + Number(mm) * 60 + Number(ss);
         const percent = Math.max(1, Math.min(99, Math.floor(seconds / 6)));
         progressCb(percent);
       }
     });
+
     ff.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(new Error("ffmpeg exited with code " + code));
+      else {
+        const fullErr = `ffmpeg exited with code ${code}\nArgs: ${args.join(" ")}\nFull stderr:\n${stderrBuf}`;
+        logError("CONVERSION_FAILED", fullErr);
+        reject(new Error(fullErr));
+      }
     });
-    ff.on("error", reject);
+
+    ff.on("error", (err) => reject(new Error(`ffmpeg spawn error: ${err.message}`)));
   });
 }
 
