@@ -145,7 +145,7 @@ async function getPlaylistMedia(playlistId) {
 }
 
 async function sendPlaylistToScreen(screenId, playlistId) {
-  const mediaList = await getPlaylistMedia(playlistId);
+  const mediaList = playlistId ? await getPlaylistMedia(playlistId) : [];
   const commandId = uuidv4();
   const ws = socketsByScreenId.get(screenId);
   if (!ws) {
@@ -159,6 +159,72 @@ async function sendPlaylistToScreen(screenId, playlistId) {
   await pool.query(
     "INSERT INTO pending_commands (id, screen_id, command_type, payload, status) VALUES ($1, $2, 'playlist_change', $3, 'pending')",
     [commandId, screenId, JSON.stringify({ playlistId, mediaList, commandId })]
+  );
+  return { queued: false, commandId };
+}
+
+// Отправить контент по умолчанию (когда плейлист снят)
+async function sendDefaultContentToScreen(screenId) {
+  const screenResult = await pool.query(
+    "SELECT default_media_id FROM screens WHERE id=$1", [screenId]
+  );
+  const screen = screenResult.rows[0];
+  if (!screen) return;
+
+  let mediaList = [];
+
+  // 1. Индивидуальное медиа по умолчанию
+  if (screen.default_media_id) {
+    const { rows } = await pool.query(
+      `SELECT id AS media_id, original_name, mime_type,
+              COALESCE(gif_path, original_path) AS src,
+              COALESCE(duration_seconds, 10) AS duration
+         FROM media WHERE id = $1`,
+      [screen.default_media_id]
+    );
+    if (rows[0]) {
+      mediaList = [{
+        id: rows[0].media_id, name: rows[0].original_name,
+        type: rows[0].mime_type, src: rows[0].src.replace(/\\/g, "/"),
+        duration: Math.ceil(rows[0].duration),
+      }];
+    }
+  }
+
+  // 2. Глобальное медиа по умолчанию
+  if (!mediaList.length) {
+    const settings = loadSettings();
+    if (settings.defaultMediaId) {
+      const { rows } = await pool.query(
+        `SELECT id AS media_id, original_name, mime_type,
+                COALESCE(gif_path, original_path) AS src,
+                COALESCE(duration_seconds, 10) AS duration
+           FROM media WHERE id = $1`,
+        [settings.defaultMediaId]
+      );
+      if (rows[0]) {
+        mediaList = [{
+          id: rows[0].media_id, name: rows[0].original_name,
+          type: rows[0].mime_type, src: rows[0].src.replace(/\\/g, "/"),
+          duration: Math.ceil(rows[0].duration),
+        }];
+      }
+    }
+  }
+
+  const commandId = uuidv4();
+  const ws = socketsByScreenId.get(screenId);
+  if (!ws) {
+    await pool.query(
+      "INSERT INTO pending_commands (id, screen_id, command_type, payload, status) VALUES ($1, $2, 'playlist_change', $3, 'pending')",
+      [commandId, screenId, JSON.stringify({ playlistId: null, mediaList, commandId })]
+    );
+    return { queued: true, commandId };
+  }
+  wsSend(ws, "playlist-change", { playlistId: null, mediaList, commandId });
+  await pool.query(
+    "INSERT INTO pending_commands (id, screen_id, command_type, payload, status) VALUES ($1, $2, 'playlist_change', $3, 'pending')",
+    [commandId, screenId, JSON.stringify({ playlistId: null, mediaList, commandId })]
   );
   return { queued: false, commandId };
 }
@@ -364,6 +430,22 @@ app.patch("/api/screens/bulk-playlist", authMiddleware, async (req, res) => {
   res.json({ ok: true, affected: ids.length });
 });
 
+// Изменить плейлист у всех экранов группы
+app.patch("/api/screens/group-playlist", authMiddleware, async (req, res) => {
+  const { groupId, playlistId } = req.body || {};
+  if (!groupId) return res.status(400).json({ error: "groupId is required" });
+
+  const { rows } = await pool.query("SELECT id FROM screens WHERE group_id=$1", [groupId]);
+  let affected = 0;
+  for (const { id } of rows) {
+    await pool.query("UPDATE screens SET playlist_id=$1, updated_at=NOW() WHERE id=$2", [playlistId || null, id]);
+    await sendPlaylistToScreen(id, playlistId || null);
+    await logEvent(id, "playlist_change", `Group playlist changed to ${playlistId || "default"}`);
+    affected++;
+  }
+  res.json({ ok: true, affected });
+});
+
 app.get("/api/display/:screenId/config", async (req, res) => {
   const { screenId } = req.params;
   const screenResult = await pool.query(
@@ -446,7 +528,14 @@ app.post("/api/playlists", authMiddleware, async (req, res) => {
 
 app.get("/api/media", authMiddleware, async (_req, res) => {
   const { rows } = await pool.query("SELECT * FROM media ORDER BY created_at DESC");
-  res.json(rows);
+  // Добавляем preview_url для фронтенда
+  const media = rows.map(m => {
+    const preview = m.conversion_status === "completed"
+      ? (m.gif_path ? m.gif_path.replace(/\\/g, "/") : (m.original_path || "").replace(/\\/g, "/"))
+      : null;
+    return { ...m, preview_url: preview };
+  });
+  res.json(media);
 });
 
 app.post("/api/media/upload", authMiddleware, upload.single("file"), async (req, res) => {
@@ -676,8 +765,14 @@ app.put("/api/screens/:screenId", authMiddleware, async (req, res) => {
     await pool.query(`UPDATE screens SET ${updates.join(", ")} WHERE id=$${idx}`, values);
 
     // Если плейлист изменён — отправить на экран
-    if (playlistId !== undefined && playlistId) {
-      await sendPlaylistToScreen(screenId, playlistId);
+    if (playlistId !== undefined) {
+      if (playlistId) {
+        // Назначен конкретный плейлист
+        await sendPlaylistToScreen(screenId, playlistId);
+      } else {
+        // Плейлист снят — переключить на контент по умолчанию
+        await sendDefaultContentToScreen(screenId);
+      }
     }
   }
 
@@ -867,6 +962,8 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 wss.on("connection", (ws, req) => {
+  const clientIp = req.socket.remoteAddress;
+  console.log(`[WS] New connection from: ${clientIp}`);
   ws.on("message", async (raw) => {
     try {
       const msg = JSON.parse(String(raw));
@@ -878,6 +975,7 @@ wss.on("connection", (ws, req) => {
         const { screenId } = msg.data || {};
         if (!screenId) return;
         const ip = req.socket.remoteAddress || null;
+        console.log(`[WS] Screen registered: ${screenId} from ${ip}`);
         socketsByScreenId.set(screenId, ws);
         ws.screenId = screenId;
         await pool.query(

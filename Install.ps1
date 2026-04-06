@@ -21,8 +21,17 @@ try {
 $ErrorActionPreference = "Continue"   # НЕ "Stop" — чтобы проверки не роняли скрипт
 $WarningPreference     = "Continue"
 
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-try { $ScriptRoot = (Get-Item $ScriptRoot).FullName } catch { }
+# Определяем каталог скрипта (надёжно, с поддержкой кириллицы)
+try {
+    $ScriptRoot = $PSScriptRoot
+    if (-not $ScriptRoot) {
+        $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+    }
+    # Нормализуем путь (преобразуем 8.3 → полный Unicode-путь)
+    $ScriptRoot = [System.IO.Path]::GetFullPath($ScriptRoot)
+} catch {
+    $ScriptRoot = $PWD.Path
+}
 Set-Location $ScriptRoot
 
 $LogFile    = Join-Path $env:TEMP "DigitalSignage-Setup.log"
@@ -206,7 +215,14 @@ function Test-FfmpegOk {
     if (-not (Test-Path $ExePath)) { return $false }
     try {
         $out = & $ExePath -version 2>&1 | Out-String
-        if ($out -match "ffmpeg version (\d+)") { return [int]$Matches[1] -ge 5 }
+        # Проверяем наличие версии — может быть "ffmpeg version 5.x" или "ffmpeg version N-xxxxx"
+        if ($out -match "ffmpeg version") {
+            if ($out -match "ffmpeg version\s+(\d+)") {
+                return [int]$Matches[1] -ge 5
+            }
+            # Если версия не распознана — считаем OK (сборка свежая)
+            return $true
+        }
     } catch { }
     return $false
 }
@@ -249,11 +265,24 @@ function Install-Ffmpeg {
     if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
     Expand-Archive -Path $zipPath -DestinationPath $extract -Force
 
-    $exe = Get-ChildItem -Path $extract -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
-    if (-not $exe) { Write-Log "ffmpeg.exe не найден в архиве" -Level "ERROR"; return $null }
+    # Ищем ffmpeg.exe рекурсивно (может быть в bin/ подпапке)
+    $exe = Get-ChildItem -Path $extract -Recurse -Filter "ffmpeg.exe" |
+           Where-Object { $_.Name -eq "ffmpeg.exe" } |
+           Select-Object -First 1
+
+    if (-not $exe) {
+        Write-Log "ffmpeg.exe не найден в архиве. Структура: $(Get-ChildItem $extract -Recurse | Select-Object -First 20 | ForEach-Object { $_.FullName } | Out-String)" -Level "ERROR"
+        return $null
+    }
 
     New-Item -ItemType Directory -Path $TargetPath -Force | Out-Null
     Copy-Item $exe.FullName (Join-Path $TargetPath "ffmpeg.exe") -Force
+
+    # Также копируем ffprobe.exe если есть
+    $probe = Get-ChildItem -Path $extract -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
+    if ($probe) {
+        Copy-Item $probe.FullName (Join-Path $TargetPath "ffprobe.exe") -Force
+    }
 
     Remove-Item $zipPath  -Force -ErrorAction SilentlyContinue
     Remove-Item $extract  -Recurse -Force -ErrorAction SilentlyContinue

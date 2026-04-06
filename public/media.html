@@ -23,10 +23,10 @@
   <main class="main">
     <header>
       <h1 data-i18n="media.title"></h1>
-      <div class="actions">
-        <form id="uploadForm" style="display:flex;gap:8px;align-items:center">
-          <input type="file" name="file" id="fileInput" accept="image/*,video/*" style="display:none">
-          <button type="button" class="btn" onclick="document.getElementById('fileInput').click()" data-i18n="media.upload"></button>
+      <div class="actions" style="width:100%">
+        <form id="uploadForm" style="display:flex;gap:8px;align-items:center;width:100%">
+          <input type="file" name="file" id="fileInput" accept="image/*,video/*" multiple style="display:none">
+          <button type="button" class="btn btn-block" onclick="document.getElementById('fileInput').click()" data-i18n="media.upload" style="max-width:200px">📤 Загрузить</button>
           <span id="fileName" style="font-size:13px;color:var(--text-secondary)"></span>
         </form>
       </div>
@@ -60,7 +60,22 @@ function card(m) {
   const statusColor = m.conversion_status === "completed" ? "online"
     : m.conversion_status === "failed" ? "offline" : "waiting";
   const statusLabel = { pending: t("media.pending"), processing: t("media.processing"), completed: t("media.completed"), failed: t("media.failed") }[m.conversion_status] || m.conversion_status;
+
+  // Предпросмотр
+  let previewHtml = '';
+  if (m.preview_url && m.conversion_status === "completed") {
+    const isVideo = m.mime_type && m.mime_type.startsWith("video/");
+    if (isVideo) {
+      previewHtml = `<div class="media-preview"><video src="${m.preview_url}" muted preload="metadata" onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0"></video></div>`;
+    } else {
+      previewHtml = `<div class="media-preview"><img src="${m.preview_url}" alt="${esc(m.original_name)}" loading="lazy"></div>`;
+    }
+  } else if (m.conversion_status === "processing") {
+    previewHtml = `<div class="media-preview media-processing"><div class="processing-spinner">${m.conversion_progress}%</div></div>`;
+  }
+
   return `<div class="card">
+    ${previewHtml}
     <strong style="color:var(--brand-blue)">${esc(m.original_name)}</strong>
     <div class="mono" style="font-size:11px;color:var(--text-tertiary);margin:4px 0">${m.id}</div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
@@ -83,16 +98,22 @@ async function del(id) {
 }
 
 document.getElementById("fileInput").addEventListener("change", async function () {
-  const file = this.files[0];
-  if (!file) return;
-  document.getElementById("fileName").textContent = file.name;
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
-    if (!res.ok) { alert(t("media.upload_err") + res.status); }
-    else { load(); }
-  } catch (e) { alert(t("media.err_generic") + e.message); }
+  const files = this.files;
+  if (!files || !files.length) return;
+
+  const names = Array.from(files).map(f => f.name).join(", ");
+  document.getElementById("fileName").textContent = files.length > 1 ? `${files.length} файлов` : names;
+
+  for (let i = 0; i < files.length; i++) {
+    const fd = new FormData();
+    fd.append("file", files[i]);
+    try {
+      const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
+      if (!res.ok) { alert(t("media.upload_err") + res.status); }
+    } catch (e) { alert(t("media.err_generic") + e.message); }
+  }
+
+  load();
   this.value = "";
   document.getElementById("fileName").textContent = "";
 });

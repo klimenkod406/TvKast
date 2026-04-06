@@ -25,6 +25,7 @@
       <h1 data-i18n="screens.title"></h1>
       <div class="actions">
         <button class="btn" onclick="openGroupModal()" data-i18n="screens.manage_groups"></button>
+        <button class="btn" onclick="openGroupPlaylistModal()" style="background:var(--kastamonu-green)">📋 Плейлист группы</button>
       </div>
     </header>
 
@@ -87,6 +88,27 @@
         <button class="btn btn-sm" onclick="createGroup()" data-i18n="screens.create"></button>
       </div>
       <div id="groupList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="groupPlaylistModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📋 Изменить плейлист группы</h2>
+      <button class="btn btn-sm" onclick="closeGroupPlaylistModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Выберите группу</label>
+        <select class="select" id="gpGroup" style="width:100%" onchange="loadGroupScreens()"></select>
+      </div>
+      <div class="form-row">
+        <label>Выберите плейлист</label>
+        <select class="select" id="gpPlaylist" style="width:100%"></select>
+      </div>
+      <div id="gpScreenCount" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px"></div>
+      <button class="btn" onclick="applyGroupPlaylist()" style="width:100%" data-i18n="screens.save">Применить</button>
     </div>
   </div>
 </div>
@@ -288,6 +310,63 @@ async function deleteGroup(id) {
   renderGroups();
 }
 
+// === Group Playlist Modal ===
+function openGroupPlaylistModal() {
+  document.getElementById("groupPlaylistModal").style.display = "flex";
+  document.getElementById("gpGroup").innerHTML = `<option value="">— Выберите группу —</option>` +
+    groups.map(g => `<option value="${g.id}">${esc(g.name)} (${g.screen_count || 0} экранов)</option>`).join("");
+  document.getElementById("gpPlaylist").innerHTML = `<option value="">— Без плейлиста (контент по умолчанию) —</option>` +
+    playlists.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  document.getElementById("gpScreenCount").textContent = "";
+}
+
+function closeGroupPlaylistModal() {
+  document.getElementById("groupPlaylistModal").style.display = "none";
+}
+
+document.getElementById("groupPlaylistModal").addEventListener("click", function(e) {
+  if (e.target === this) closeGroupPlaylistModal();
+});
+
+function loadGroupScreens() {
+  const groupId = document.getElementById("gpGroup").value;
+  if (!groupId) {
+    document.getElementById("gpScreenCount").textContent = "";
+    return;
+  }
+  const groupScreens = screens.filter(s => s.group_id === groupId);
+  document.getElementById("gpScreenCount").textContent = `Экранов в группе: ${groupScreens.length}`;
+}
+
+async function applyGroupPlaylist() {
+  const groupId = document.getElementById("gpGroup").value;
+  const playlistId = document.getElementById("gpPlaylist").value || null;
+
+  if (!groupId) { alert("Выберите группу"); return; }
+
+  const groupScreens = screens.filter(s => s.group_id === groupId);
+  if (!groupScreens.length) { alert("В группе нет экранов"); return; }
+
+  const screenIds = groupScreens.map(s => s.id);
+  const plName = playlistId ? (playlists.find(p => p.id === playlistId)?.name || "—") : "контент по умолчанию";
+
+  if (!confirm(`Применить плейлист "${plName}" к ${screenIds.length} экранам группы?`)) return;
+
+  // Обновляем БД и отправляем команду каждому экрану
+  const res = await fetch("/api/screens/group-playlist", {
+    method: "PATCH",
+    headers: { ...auth(), "Content-Type": "application/json" },
+    body: JSON.stringify({ groupId, playlistId })
+  });
+
+  if (!res.ok) { alert("Ошибка при применении плейлиста"); return; }
+
+  const result = await res.json();
+  alert(`Плейлист применён к ${result.affected} экранам`);
+  closeGroupPlaylistModal();
+  loadAll();
+}
+
 function connectWs() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}/ws`);
@@ -314,6 +393,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (document.getElementById("screenModal").style.display === "flex") closeScreenModal();
     else if (document.getElementById("groupModal").style.display === "flex") closeGroupModal();
+    else if (document.getElementById("groupPlaylistModal").style.display === "flex") closeGroupPlaylistModal();
   }
 });
 </script>

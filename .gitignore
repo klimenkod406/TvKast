@@ -56,4 +56,15 @@ test-*.bat
 
 # Windows service helper (downloaded)
 nssm.exe
-service/ 
+service/
+
+# FFmpeg (downloaded during install)
+bin/ffmpeg.exe
+bin/ffprobe.exe
+bin/
+
+# Installer output
+installer-output/
+
+# Shortcuts (created dynamically)
+*.lnk 

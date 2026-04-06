@@ -81,6 +81,7 @@ const T = {
   "playlists.media_title": { ru: "Медиа в плейлисте", en: "Media in playlist", tr: "Listedeki medya", it: "Media nella playlist", ro: "Media în playlist", bg: "Медия в плейлиста", bs: "Mediji u plejlisti" },
   "playlists.empty_playlist": { ru: "Плейлист пуст. Добавьте медиа.", en: "Playlist is empty. Add media.", tr: "Liste boş. Medya ekleyin.", it: "Playlist vuota. Aggiungi media.", ro: "Playlistul e gol. Adaugă media.", bg: "Плейлистът е празен. Добавете медия.", bs: "Plejlista je prazna. Dodajte medije." },
   "playlists.add_media_title": { ru: "Добавить медиа", en: "Add Media", tr: "Medya Ekle", it: "Aggiungi Media", ro: "Adaugă Media", bg: "Добавяне на медия", bs: "Dodaj medije" },
+  "playlists.add_media_btn": { ru: "＋ Выбрать медиа", en: "＋ Select Media", tr: "＋ Medya Seç", it: "＋ Seleziona Media", ro: "＋ Selectează Media", bg: "＋ Избери медия", bs: "＋ Odaberi medije" },
   "playlists.select_media": { ru: "— Выберите медиафайл —", en: "— Select media file —", tr: "— Medya dosyası seçin —", it: "— Seleziona file —", ro: "— Selectează fișier —", bg: "— Изберете файл —", bs: "— Odaberite datoteku —" },
   "playlists.add": { ru: "Добавить", en: "Add", tr: "Ekle", it: "Aggiungi", ro: "Adaugă", bg: "Добави", bs: "Dodaj" },
   "playlists.upload_title": { ru: "Загрузить файл в плейлист", en: "Upload file to playlist", tr: "Listeye dosya yükle", it: "Carica file nella playlist", ro: "Încarcă fișier în playlist", bg: "Качи файл в плейлист", bs: "Učitaj datoteku u plejlistu" },

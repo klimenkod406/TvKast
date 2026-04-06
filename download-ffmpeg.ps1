@@ -10,8 +10,11 @@ function Test-FfmpegOk {
   if (-not (Test-Path $ExePath)) { return $false }
   try {
     $out = & $ExePath -version 2>&1 | Out-String
-    if ($out -match "ffmpeg version (\d+)") {
-      return [int]$Matches[1] -ge 5
+    if ($out -match "ffmpeg version") {
+      if ($out -match "ffmpeg version\s+(\d+)") {
+        return [int]$Matches[1] -ge 5
+      }
+      return $true
     }
   } catch { }
   return $false
@@ -40,9 +43,17 @@ Invoke-WebRequest -Uri $url -OutFile $zipPath
 if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
 Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
 
-$exe = Get-ChildItem -Path $extractPath -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+$exe = Get-ChildItem -Path $extractPath -Recurse -Filter "ffmpeg.exe" |
+       Where-Object { $_.Name -eq "ffmpeg.exe" } |
+       Select-Object -First 1
 if (-not $exe) { throw "ffmpeg.exe не найден в архиве" }
 
 New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
 Copy-Item $exe.FullName (Join-Path $InstallPath "ffmpeg.exe") -Force
+
+$probe = Get-ChildItem -Path $extractPath -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
+if ($probe) {
+    Copy-Item $probe.FullName (Join-Path $InstallPath "ffprobe.exe") -Force
+}
+
 Write-Host "ffmpeg установлен: $(Join-Path $InstallPath 'ffmpeg.exe')"

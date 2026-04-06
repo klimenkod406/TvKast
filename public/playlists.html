@@ -47,14 +47,9 @@
           </div>
           <div class="mb-3" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
             <h3 style="font-size:14px;margin:0 0 8px" data-i18n="playlists.add_media_title"></h3>
-            <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
-              <select class="select" id="mediaSelect" style="flex:1;min-width:200px">
-                <option value="" data-i18n="playlists.select_media"></option>
-              </select>
-              <button class="btn btn-sm" onclick="addItem()" data-i18n="playlists.add"></button>
-            </div>
-            <div style="margin-top:8px">
-              <input type="file" id="uploadFile" accept="image/*,video/*" style="display:none" onchange="uploadToPlaylist(this)">
+            <button class="btn btn-block" onclick="openMediaPicker()" data-i18n="playlists.add_media_btn">＋ Выбрать медиа</button>
+            <div style="margin-top:8px;text-align:center">
+              <input type="file" id="uploadFile" accept="image/*,video/*" multiple style="display:none" onchange="uploadToPlaylist(this)">
               <button class="btn btn-sm" onclick="document.getElementById('uploadFile').click()" data-i18n="playlists.upload_title"></button>
             </div>
           </div>
@@ -62,6 +57,20 @@
       </div>
     </div>
   </main>
+</div>
+
+<!-- Модальное окно выбора медиа -->
+<div class="modal-overlay" id="mediaPickerModal" style="display:none">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-header">
+      <h2>Выберите медиа для добавления</h2>
+      <button class="btn btn-sm" onclick="closeMediaPicker()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input class="input" id="mediaSearch" placeholder="Поиск по названию..." style="width:100%;margin-bottom:12px" oninput="filterMediaPicker()">
+      <div id="mediaPickerGrid" class="media-picker-grid"></div>
+    </div>
+  </div>
 </div>
 
 <script src="/admin/i18n.js"></script>
@@ -112,10 +121,88 @@ function renderList() {
 }
 
 function populateMediaSelect() {
-  const sel = document.getElementById("mediaSelect");
-  const ready = allMedia.filter(m => m.conversion_status === "completed");
-  sel.innerHTML = `<option value="">${t("playlists.select_media")}</option>` +
-    ready.map(m => `<option value="${m.id}">${esc(m.original_name)} (${m.mime_type})</option>`).join("");
+  // Больше не используется — оставлено для совместимости
+}
+
+// === Media Picker Modal ===
+function openMediaPicker() {
+  document.getElementById("mediaPickerModal").style.display = "flex";
+  document.getElementById("mediaSearch").value = "";
+  selectedMediaIds.clear();
+  renderMediaPicker(allMedia);
+}
+
+function closeMediaPicker() {
+  document.getElementById("mediaPickerModal").style.display = "none";
+}
+
+document.getElementById("mediaPickerModal").addEventListener("click", function(e) {
+  if (e.target === this) closeMediaPicker();
+});
+
+function filterMediaPicker() {
+  const query = document.getElementById("mediaSearch").value.toLowerCase();
+  const filtered = allMedia.filter(m =>
+    m.conversion_status === "completed" &&
+    m.original_name.toLowerCase().includes(query)
+  );
+  renderMediaPicker(filtered);
+}
+
+function renderMediaPicker(media) {
+  const ready = media.filter(m => m.conversion_status === "completed");
+  const el = document.getElementById("mediaPickerGrid");
+  if (!ready.length) {
+    el.innerHTML = `<p style="color:var(--text-tertiary);grid-column:1/-1;text-align:center;padding:20px">Нет доступного медиа</p>`;
+    return;
+  }
+  el.innerHTML = ready.map(m => {
+    const isVideo = m.mime_type && m.mime_type.startsWith("video/");
+    const previewUrl = m.preview_url || m.original_path;
+    let previewHtml = '';
+    if (previewUrl) {
+      if (isVideo) {
+        previewHtml = `<div class="media-picker-preview"><video src="${previewUrl}" muted preload="metadata"></video></div>`;
+      } else {
+        previewHtml = `<div class="media-picker-preview"><img src="${previewUrl}" alt="${esc(m.original_name)}" loading="lazy"></div>`;
+      }
+    }
+    return `<div class="media-picker-card" data-id="${m.id}" onclick="toggleMediaSelect(this, '${m.id}')">
+      ${previewHtml}
+      <div class="media-picker-info">
+        <strong title="${esc(m.original_name)}">${esc(m.original_name)}</strong>
+        <small>${m.mime_type || ''}</small>
+      </div>
+    </div>`;
+  }).join("") + `<div style="grid-column:1/-1;text-align:center;margin-top:12px">
+    <button class="btn" onclick="addSelectedMedia()" style="min-width:200px">Добавить выбранные (<span id="selectedCount">0</span>)</button>
+  </div>`;
+}
+
+let selectedMediaIds = new Set();
+
+function toggleMediaSelect(card, mediaId) {
+  if (selectedMediaIds.has(mediaId)) {
+    selectedMediaIds.delete(mediaId);
+    card.classList.remove("selected");
+  } else {
+    selectedMediaIds.add(mediaId);
+    card.classList.add("selected");
+  }
+  document.getElementById("selectedCount").textContent = selectedMediaIds.size;
+}
+
+async function addSelectedMedia() {
+  if (!currentPlaylistId || !selectedMediaIds.size) return;
+  for (const mediaId of selectedMediaIds) {
+    await fetch(`/api/playlists/${currentPlaylistId}/items`, {
+      method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId })
+    });
+  }
+  selectedMediaIds.clear();
+  closeMediaPicker();
+  loadItems(currentPlaylistId);
 }
 
 async function createPlaylist() {
@@ -184,31 +271,33 @@ async function renamePlaylist() {
 }
 
 async function addItem() {
-  const mediaId = document.getElementById("mediaSelect").value;
-  if (!mediaId) return;
-  await fetch(`/api/playlists/${currentPlaylistId}/items`, {
-    method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
-    body: JSON.stringify({ mediaId })
-  });
-  loadItems(currentPlaylistId);
-  populateMediaSelect();
+  // Больше не используется — оставлено для совместимости
 }
 
 async function uploadToPlaylist(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
-  if (!res.ok) { alert(t("playlists.upload_err")); input.value = ""; return; }
-  const data = await res.json();
-  if (data.status === "completed") {
-    await fetch(`/api/playlists/${currentPlaylistId}/items`, {
-      method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
-      body: JSON.stringify({ mediaId: data.id })
-    });
-    loadItems(currentPlaylistId);
+  const files = input.files;
+  if (!files || !files.length) return;
+
+  const total = files.length;
+  let uploaded = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/media/upload", { method: "POST", headers: auth(), body: fd });
+    if (!res.ok) { alert(t("playlists.upload_err")); continue; }
+    const data = await res.json();
+    if (data.status === "completed") {
+      await fetch(`/api/playlists/${currentPlaylistId}/items`, {
+        method: "POST", headers: { ...auth(), "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: data.id })
+      });
+    }
+    uploaded++;
   }
+
+  loadItems(currentPlaylistId);
   load();
   input.value = "";
 }
@@ -244,7 +333,10 @@ document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placehol
 applyLang();
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.getElementById("editor").style.display === "flex") closeEditor();
+  if (e.key === "Escape") {
+    if (document.getElementById("editor").style.display === "flex") closeEditor();
+    else if (document.getElementById("mediaPickerModal").style.display === "flex") closeMediaPicker();
+  }
 });
 </script>
 </body>

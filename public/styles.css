@@ -41,8 +41,8 @@ body { margin: 0; background: var(--bg-primary); color: var(--text-primary); fon
 .reg-card { margin-top: auto; padding-top: 24px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--border); }
 
 /* ── Grid & Cards ── */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-sm); transition: box-shadow .15s; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px; box-shadow: var(--shadow-sm); transition: box-shadow .15s; }
 .card:hover { box-shadow: var(--shadow-md); }
 
 .screen-card { cursor: pointer; }
@@ -74,6 +74,7 @@ body { margin: 0; background: var(--bg-primary); color: var(--text-primary); fon
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn-danger { background: var(--status-offline); }
 .btn-danger:hover { box-shadow: 0 4px 12px rgba(239,68,68,.25); }
+.btn-block { display: block; width: 100%; text-align: center; }
 
 /* ── Inputs ── */
 .input, .select { width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px; margin-bottom: 4px; font-size: 13px; }
@@ -116,12 +117,117 @@ body { margin: 0; background: var(--bg-primary); color: var(--text-primary); fon
 .info-row { display: flex; justify-content: space-between; padding: 3px 0; }
 .info-row .label { color: var(--text-secondary); font-weight: 500; }
 
+/* ── Media preview ── */
+.media-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.media-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.media-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.media-preview.media-processing {
+  background: #f1f5f9;
+}
+.processing-spinner {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--kastamonu-blue);
+}
+
 /* ── Mono ── */
 .mono { font-family: Consolas, monospace; }
 
 /* ── Language selector ── */
 .lang-select { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; cursor: pointer; width: 100%; background: #fff; }
 .lang-select:focus { outline: none; border-color: var(--kastamonu-green); box-shadow: 0 0 0 3px rgba(16,185,129,.1); }
+
+/* ── Media picker grid ── */
+.media-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.media-picker-card {
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  position: relative;
+}
+.media-picker-card::after {
+  content: "✓";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: var(--kastamonu-green);
+  color: #fff;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.media-picker-card.selected::after {
+  display: flex;
+}
+.media-picker-card:hover {
+  border-color: var(--kastamonu-green);
+  box-shadow: var(--shadow-md);
+}
+.media-picker-preview {
+  width: 100%;
+  height: 90px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.media-picker-preview img,
+.media-picker-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.media-picker-info {
+  padding: 6px;
+  font-size: 11px;
+}
+.media-picker-info strong {
+  display: block;
+  font-size: 11px;
+  color: var(--kastamonu-blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.media-picker-info small {
+  color: var(--text-tertiary);
+  font-size: 9px;
+}
+
 @media (max-width: 768px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; border-right: none; border-bottom: 1px solid var(--border); }

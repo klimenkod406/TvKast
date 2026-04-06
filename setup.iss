@@ -38,7 +38,6 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "node_modules\*,.git\*,installer-output\*,*.log,INSTALL_OK"
 
 [Icons]
-Name: "{group}\{#MyAppName} — Установка"; Filename: "{app}\Install.ps1"; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
 Name: "{group}\{#MyAppName} — Запуск сервера"; Filename: "{app}\node.exe"; Parameters: """{app}\src\server.js"""; WorkingDir: "{app}"
 Name: "{group}\{#MyAppName} — Админ-панель (браузер)"; Filename: "http://localhost:3000/admin/login.html"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
 Name: "{group}\{#MyAppName} — Лог установки"; Filename: "{%TEMP}\DigitalSignage-Setup.log"
@@ -46,7 +45,7 @@ Name: "{commondesktop}\{#MyAppName} — Запуск"; Filename: "{app}\node.exe
 Name: "{commondesktop}\{#MyAppName} — Документация"; Filename: "{app}\README.md"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Install.ps1"""; Description: "Запустить мастер установки"; Flags: postinstall shellexec skipifsilent nowait; WorkingDir: "{app}"
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Install.ps1"""; Description: "Запустить мастер установки"; Flags: postinstall; WorkingDir: "{app}"
 
 [Code]
 function InitializeSetup(): Boolean;
